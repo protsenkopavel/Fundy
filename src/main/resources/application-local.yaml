@@ -54,6 +54,12 @@ fundy:
       settle: usdt
       timeout: 10
       enabled: true
+    coinex:
+      api-key: ${COINEX_API_KEY:}
+      secret-key: ${COINEX_SECRET_KEY:}
+      base-url: https://api.coinex.com
+      timeout: 10
+      enabled: true
 
 server:
   port: 8082
