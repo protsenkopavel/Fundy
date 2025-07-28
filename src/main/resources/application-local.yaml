@@ -3,18 +3,19 @@ spring:
     name: Fundy
   cache:
     type: redis
+  data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT_INTERNAL}
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT_INTERNAL:6379}
 
 fundy:
   exchanges:
     bybit:
-      enabled: false
-      apiKey: ""
-      secretKey: ""
-      baseUrl: "https://api.bybit.com"
+      api-key: ${BYBIT_API_KEY:}
+      secret-key: ${BYBIT_SECRET_KEY:}
+      base-url: https://api.bybit.com
       timeout: 10
+      enabled: true
 
 server:
   port: 8082
