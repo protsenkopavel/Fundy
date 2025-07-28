@@ -35,6 +35,12 @@ fundy:
       timeout: 10
       enabled: true
       product-type: umcbl
+    bingx:
+      api-key: ${BINGX_API_KEY:}
+      secret-key: ${BINGX_SECRET_KEY:}
+      base-url: https://open-api.bingx.com
+      timeout: 10
+      enabled: true
 
 server:
   port: 8082
