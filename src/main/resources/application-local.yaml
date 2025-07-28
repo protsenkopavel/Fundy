@@ -28,6 +28,13 @@ fundy:
       base-url: https://api-futures.kucoin.com
       timeout: 10
       enabled: true
+    bitget:
+      api-key: ${BITGET_API_KEY:}
+      secret-key: ${BITGET_SECRET_KEY:}
+      base-url: https://api.bitget.com
+      timeout: 10
+      enabled: true
+      product-type: umcbl
 
 server:
   port: 8082

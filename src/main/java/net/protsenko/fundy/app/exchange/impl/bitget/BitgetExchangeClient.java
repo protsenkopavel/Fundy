@@ -1,0 +1,192 @@
+package net.protsenko.fundy.app.exchange.impl.bitget;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.InstrumentType;
+import net.protsenko.fundy.app.dto.TickerData;
+import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.exception.ExchangeException;
+import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
+import net.protsenko.fundy.app.exchange.ExchangeType;
+import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Component
+public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
+
+    private static final long EIGHT_HOURS_MS = Duration.ofHours(8).toMillis();
+    private volatile Map<String, TradingInstrument> symbolIndex;
+    private volatile long nextFundingGlobalMs = -1L;
+
+    public BitgetExchangeClient(BitgetConfig config) {
+        super(config);
+    }
+
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.BITGET;
+    }
+
+    @Override
+    protected List<TradingInstrument> fetchAvailableInstruments() {
+        String url = config.getBaseUrl()
+                + "/api/mix/v1/market/contracts?productType=" + config.getProductType();
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+
+        BitgetResponse<List<BitgetContractItem>> resp = sendRequest(
+                req, new TypeReference<>() {
+                }
+        );
+
+        if (resp == null || !"00000".equals(resp.code()) || resp.data() == null) {
+            throw new ExchangeException("Bitget instruments error: " + (resp != null ? resp.msg() : "null response"));
+        }
+
+        List<TradingInstrument> list = resp.data().stream()
+                .filter(i -> "normal".equalsIgnoreCase(i.symbolStatus()))
+                .map(i -> new TradingInstrument(
+                        i.baseCoin(),
+                        i.quoteCoin(),
+                        InstrumentType.PERPETUAL,
+                        i.symbol()
+                ))
+                .toList();
+
+        symbolIndex = list.stream()
+                .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+
+        return list;
+    }
+
+    private Map<String, TradingInstrument> symbolIndex() {
+        Map<String, TradingInstrument> local = symbolIndex;
+        if (local == null) {
+            local = getAvailableInstruments().stream()
+                    .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+            symbolIndex = local;
+        }
+        return local;
+    }
+
+    private String ensureSymbol(TradingInstrument instrument) {
+        if (instrument.nativeSymbol() != null) return instrument.nativeSymbol();
+        return instrument.baseAsset() + instrument.quoteAsset() + "_" + config.getProductType().toUpperCase();
+    }
+
+    @Override
+    public TickerData getTicker(TradingInstrument instrument) {
+        String symbol = ensureSymbol(instrument);
+        String url = config.getBaseUrl() + "/api/mix/v1/market/ticker?symbol=" + symbol;
+
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+        BitgetResponse<BitgetTickerItem> resp = sendRequest(
+                req, new TypeReference<>() {
+                }
+        );
+
+        if (resp == null || !"00000".equals(resp.code()) || resp.data() == null) {
+            throw new ExchangeException("Bitget ticker error: " + (resp != null ? resp.msg() : "null response"));
+        }
+
+        BitgetTickerItem t = resp.data();
+        return new TickerData(
+                instrument,
+                d(t.last()),
+                d(t.bestBid()),
+                d(t.bestAsk()),
+                d(t.high24h()),
+                d(t.low24h()),
+                d(t.baseVolume()),
+                System.currentTimeMillis()
+        );
+    }
+
+    @Override
+    public FundingRateData getFundingRate(TradingInstrument instrument) {
+        String symbol = ensureSymbol(instrument);
+
+        String url = config.getBaseUrl() + "/api/mix/v1/market/current-fundRate?symbol=" + symbol;
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+        BitgetResponse<BitgetFundingItem> resp = sendRequest(
+                req, new TypeReference<>() {
+                }
+        );
+
+        if (resp == null || !"00000".equals(resp.code()) || resp.data() == null) {
+            throw new ExchangeException("Bitget funding error: " + (resp != null ? resp.msg() : "null response"));
+        }
+
+        BigDecimal rate = bd(resp.data().fundingRate());
+        long next = nextFundingTimeGlobal();
+
+        return new FundingRateData(instrument, rate, next);
+    }
+
+    @Override
+    public List<FundingRateData> getAllFundingRates() {
+        String url = config.getBaseUrl()
+                + "/api/mix/v1/market/tickers?productType=" + config.getProductType();
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+
+        BitgetResponse<List<BitgetTickerItem>> resp = sendRequest(
+                req, new TypeReference<>() {
+                }
+        );
+
+        if (resp == null || !"00000".equals(resp.code()) || resp.data() == null) {
+            throw new ExchangeException("Bitget tickers error: " + (resp != null ? resp.msg() : "null response"));
+        }
+
+        long next = nextFundingTimeGlobal();
+        Map<String, TradingInstrument> dict = symbolIndex();
+
+        return resp.data().stream()
+                .map(t -> {
+                    TradingInstrument inst = dict.get(t.symbol());
+                    if (inst == null) return null;
+                    return new FundingRateData(
+                            inst,
+                            bd(t.fundingRate()),
+                            next
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private long nextFundingTimeGlobal() {
+        long cached = nextFundingGlobalMs;
+        long now = System.currentTimeMillis();
+        if (cached > now) return cached;
+        long next = ((now / EIGHT_HOURS_MS) + 1) * EIGHT_HOURS_MS;
+        nextFundingGlobalMs = next;
+        return next;
+    }
+
+    private double d(String s) {
+        if (s == null || s.isBlank()) return 0.0;
+        try {
+            return Double.parseDouble(s);
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
+    private BigDecimal bd(String s) {
+        if (s == null || s.isBlank()) return BigDecimal.ZERO;
+        try {
+            return new BigDecimal(s);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+}

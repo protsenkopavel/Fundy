@@ -66,13 +66,41 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
     public abstract TickerData getTicker(TradingInstrument instrument);
 
     protected <R> R sendRequest(HttpRequest request, Class<R> responseType) {
+        HttpResponse<String> resp = null;
         try {
-            HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            log.info(resp.toString());
+            resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            logResponse(request, resp);
             return parseBody(resp, responseType);
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            throw new ExchangeException("API request failed", e);
+            log.error("HTTP {} {} interrupted", request.method(), request.uri(), ie);
+            throw new ExchangeException("API request interrupted", ie);
+        } catch (IOException ioe) {
+            log.error("HTTP {} {} failed (IO).", request.method(), request.uri(), ioe);
+            throw new ExchangeException("API request failed", ioe);
+        }
+    }
+
+    protected <R> R sendRequest(HttpRequest request, TypeReference<R> typeRef) {
+        HttpResponse<String> resp = null;
+        try {
+            resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            logResponse(request, resp);
+            return parseBody(resp, typeRef);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            log.error("HTTP {} {} interrupted", request.method(), request.uri(), ie);
+            throw new ExchangeException("API request interrupted", ie);
+        } catch (IOException ioe) {
+            log.error("HTTP {} {} failed (IO).", request.method(), request.uri(), ioe);
+            throw new ExchangeException("API request failed", ioe);
+        }
+    }
+
+    private void logResponse(HttpRequest req, HttpResponse<String> resp) {
+        if (resp.statusCode() >= 400) {
+            log.error("HTTP {} {} -> {} {}", req.method(), req.uri(),
+                    resp.statusCode(), resp.body());
         }
     }
 
