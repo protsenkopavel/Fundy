@@ -47,6 +47,13 @@ fundy:
       base-url: https://www.okx.com
       timeout: 10
       enabled: true
+    gateio:
+      api-key: ${GATEIO_API_KEY:}
+      secret-key: ${GATEIO_SECRET_KEY:}
+      base-url: https://api.gateio.ws
+      settle: usdt
+      timeout: 10
+      enabled: true
 
 server:
   port: 8082
