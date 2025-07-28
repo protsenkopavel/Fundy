@@ -1,3 +1,5 @@
+*.env
+logs/
 HELP.md
 .gradle
 build/
