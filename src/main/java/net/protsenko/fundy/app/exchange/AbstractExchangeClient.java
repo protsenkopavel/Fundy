@@ -90,6 +90,7 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
         try {
             return mapper.readValue(response.body(), typeRef);
         } catch (Exception e) {
+            log.error("JSON parse failed. Body: {}", response.body(), e);
             throw new ExchangeException("JSON parse failed", e);
         }
     }

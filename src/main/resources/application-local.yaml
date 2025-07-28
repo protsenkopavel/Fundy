@@ -22,6 +22,12 @@ fundy:
       base-url: https://contract.mexc.com
       timeout: 10
       enabled: true
+    kucoin:
+      api-key: ${KUCOIN_API_KEY:}
+      secret-key: ${KUCOIN_SECRET_KEY:}
+      base-url: https://api-futures.kucoin.com
+      timeout: 10
+      enabled: true
 
 server:
   port: 8082

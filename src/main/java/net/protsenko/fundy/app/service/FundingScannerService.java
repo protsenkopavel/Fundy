@@ -24,9 +24,8 @@ public class FundingScannerService {
         BigDecimal th = BigDecimal.valueOf(Math.abs(minRateAbs));
 
         List<FundingRateData> all = client.getAllFundingRates();
-
         if (all.isEmpty()) {
-            log.warn("No funding rates from {} (instruments={})", type, client.getAvailableInstruments().size());
+            log.warn("No funding rates from {}", type);
             return List.of();
         }
 
