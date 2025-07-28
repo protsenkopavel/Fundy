@@ -60,6 +60,12 @@ fundy:
       base-url: https://api.coinex.com
       timeout: 10
       enabled: true
+    htx:
+      api-key: ${HTX_API_KEY:}
+      secret-key: ${HTX_SECRET_KEY:}
+      base-url: https://api.hbdm.com
+      timeout: 10
+      enabled: true
 
 server:
   port: 8082
