@@ -41,6 +41,12 @@ fundy:
       base-url: https://open-api.bingx.com
       timeout: 10
       enabled: true
+    okx:
+      api-key: ${OKX_API_KEY:}
+      secret-key: ${OKX_SECRET_KEY:}
+      base-url: https://www.okx.com
+      timeout: 10
+      enabled: true
 
 server:
   port: 8082
