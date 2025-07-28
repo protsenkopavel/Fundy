@@ -16,6 +16,12 @@ fundy:
       base-url: https://api.bybit.com
       timeout: 10
       enabled: true
+    mexc:
+      api-key: ${MEXC_API_KEY:}
+      secret-key: ${MEXC_SECRET_KEY:}
+      base-url: https://contract.mexc.com
+      timeout: 10
+      enabled: true
 
 server:
   port: 8082

@@ -15,9 +15,13 @@ public interface ExchangeClient {
 
     TickerData getTicker(TradingInstrument instrument);
 
+    FundingRateData getFundingRate(TradingInstrument instrument);
+
+    default List<FundingRateData> getAllFundingRates() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
     default List<TickerData> getTickers(List<TradingInstrument> instruments) {
         return instruments.stream().map(this::getTicker).toList();
     }
-
-    FundingRateData getFundingRate(TradingInstrument instrument);
 }

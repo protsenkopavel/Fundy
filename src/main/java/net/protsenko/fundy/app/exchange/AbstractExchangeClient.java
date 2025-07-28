@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.TickerData;
 import net.protsenko.fundy.app.dto.TradingInstrument;
 import net.protsenko.fundy.app.exception.ExchangeException;
@@ -17,6 +18,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
+@Slf4j
 public abstract class AbstractExchangeClient<T extends ExchangeConfig> implements ExchangeClient {
 
     protected final T config;
@@ -66,6 +68,7 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
     protected <R> R sendRequest(HttpRequest request, Class<R> responseType) {
         try {
             HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info(resp.toString());
             return parseBody(resp, responseType);
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();

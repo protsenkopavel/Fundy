@@ -1,16 +1,18 @@
 package net.protsenko.fundy.app.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
-import net.protsenko.fundy.app.exchange.impl.bybit.BybitExchangeClient;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FundingScannerService {
@@ -18,15 +20,23 @@ public class FundingScannerService {
     private final ExchangeClientFactory factory;
 
     public List<FundingRateData> findHighFundingRates(ExchangeType type, double minRateAbs) {
-        if (type != ExchangeType.BYBIT) {
-            throw new UnsupportedOperationException("Пока реализовано только для BYBIT");
+        ExchangeClient client = factory.getClient(type);
+        BigDecimal th = BigDecimal.valueOf(Math.abs(minRateAbs));
+
+        List<FundingRateData> all = client.getAllFundingRates();
+
+        if (all.isEmpty()) {
+            log.warn("No funding rates from {} (instruments={})", type, client.getAvailableInstruments().size());
+            return List.of();
         }
-        var client = (BybitExchangeClient) factory.getClient(type);
 
-        BigDecimal threshold = BigDecimal.valueOf(Math.abs(minRateAbs));
+        all.stream()
+                .sorted(Comparator.comparing(fr -> fr.fundingRate().abs(), Comparator.reverseOrder()))
+                .limit(10)
+                .forEach(fr -> log.info("{} {} -> {}", type, fr.instrument().nativeSymbol(), fr.fundingRate()));
 
-        return client.getAllFundingRates().stream()
-                .filter(fr -> fr.fundingRate().abs().compareTo(threshold) >= 0)
+        return all.stream()
+                .filter(fr -> fr.fundingRate().abs().compareTo(th) >= 0)
                 .sorted(Comparator.comparing((FundingRateData fr) -> fr.fundingRate().abs()).reversed())
                 .toList();
     }
