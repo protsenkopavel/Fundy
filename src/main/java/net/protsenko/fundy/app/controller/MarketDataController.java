@@ -1,8 +1,6 @@
 package net.protsenko.fundy.app.controller;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.TickerData;
 import net.protsenko.fundy.app.dto.TradingInstrument;
 import net.protsenko.fundy.app.dto.TradingInstrumentRequest;
@@ -29,11 +27,10 @@ public class MarketDataController {
     @GetMapping("/{exchange}/ticker")
     public TickerData getTicker(
             @PathVariable ExchangeType exchange,
-            @RequestParam @NotBlank String base,
-            @RequestParam @NotBlank String quote
+            @RequestParam String base,
+            @RequestParam String quote
     ) {
-        TradingInstrument instrument = new TradingInstrument(base, quote, InstrumentType.PERPETUAL);
-        return marketDataService.getTicker(exchange, instrument);
+        return marketDataService.getTicker(exchange, base, quote);
     }
 
     @PostMapping("/{exchange}/tickers")
@@ -41,9 +38,6 @@ public class MarketDataController {
             @PathVariable ExchangeType exchange,
             @RequestBody List<TradingInstrumentRequest> body
     ) {
-        List<TradingInstrument> instruments = body.stream()
-                .map(req -> new TradingInstrument(req.base(), req.quote(), InstrumentType.PERPETUAL))
-                .toList();
-        return marketDataService.getTickers(exchange, instruments);
+        return marketDataService.getTickers(exchange, body);
     }
 }

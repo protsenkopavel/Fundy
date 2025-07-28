@@ -1,5 +1,6 @@
 package net.protsenko.fundy.app.exchange;
 
+import net.protsenko.fundy.app.dto.FundingRateData;
 import net.protsenko.fundy.app.dto.TickerData;
 import net.protsenko.fundy.app.dto.TradingInstrument;
 
@@ -17,4 +18,6 @@ public interface ExchangeClient {
     default List<TickerData> getTickers(List<TradingInstrument> instruments) {
         return instruments.stream().map(this::getTicker).toList();
     }
+
+    FundingRateData getFundingRate(TradingInstrument instrument);
 }

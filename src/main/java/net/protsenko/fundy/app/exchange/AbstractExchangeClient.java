@@ -51,7 +51,9 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
     }
 
     @Override
-    @Cacheable(value = "exchange-instruments", key = "#root.target.exchangeType")
+    @Cacheable(cacheNames = "exchange-instruments",
+            key = "#root.target.exchangeType",
+            cacheManager = "caffeineCacheManager")
     public List<TradingInstrument> getAvailableInstruments() {
         return fetchAvailableInstruments();
     }
