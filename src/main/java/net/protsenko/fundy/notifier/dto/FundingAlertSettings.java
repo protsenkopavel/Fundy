@@ -14,4 +14,19 @@ public record FundingAlertSettings(
         Duration notifyBefore,
         ZoneId zone
 ) {
+    public FundingAlertSettings withMinAbsRate(BigDecimal rate) {
+        return new FundingAlertSettings(chatId, rate, exchanges, notifyBefore, zone);
+    }
+
+    public FundingAlertSettings withExchanges(Set<ExchangeType> ex) {
+        return new FundingAlertSettings(chatId, minAbsRate, ex, notifyBefore, zone);
+    }
+
+    public FundingAlertSettings withNotifyBefore(Duration d) {
+        return new FundingAlertSettings(chatId, minAbsRate, exchanges, d, zone);
+    }
+
+    public FundingAlertSettings withZone(ZoneId z) {
+        return new FundingAlertSettings(chatId, minAbsRate, exchanges, notifyBefore, z);
+    }
 }

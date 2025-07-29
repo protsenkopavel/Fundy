@@ -3,6 +3,7 @@ package net.protsenko.fundy.notifier.bot;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.notifier.dto.SnapshotRefreshedEvent;
 import net.protsenko.fundy.notifier.service.FundingAggregatorService;
 import net.protsenko.fundy.notifier.service.FundingSnapshotCache;
 import net.protsenko.fundy.notifier.util.FundingMessageFormatter;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.notifier.dto.FundingAlertSettings;
 import net.protsenko.fundy.notifier.repo.UserSettingsRepo;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
@@ -44,6 +46,7 @@ public class FundingBot extends TelegramLongPollingBot {
     private final BotStateStore stateStore;
     private final FundingSnapshotCache cache;
     private final Executor previewExecutor;
+    private final PreviewRegistry previewRegistry;
 
     public FundingBot(
             @Value("${telegram.bot.username}") String username,
@@ -51,7 +54,8 @@ public class FundingBot extends TelegramLongPollingBot {
             UserSettingsRepo repo,
             BotStateStore stateStore,
             FundingSnapshotCache cache,
-            Executor previewExecutor
+            Executor previewExecutor,
+            PreviewRegistry previewRegistry
     ) {
         this.username = username;
         this.token = token;
@@ -59,6 +63,7 @@ public class FundingBot extends TelegramLongPollingBot {
         this.stateStore = stateStore;
         this.cache = cache;
         this.previewExecutor = previewExecutor;
+        this.previewRegistry = previewRegistry;
     }
 
     @PostConstruct
@@ -288,8 +293,8 @@ public class FundingBot extends TelegramLongPollingBot {
             log.warn("Cannot send pending msg", e);
             return;
         }
-
         int msgId = pending.getMessageId();
+        previewRegistry.put(chatId, msgId); // <-- запомнили
 
         previewExecutor.execute(() -> {
             try {
@@ -302,15 +307,30 @@ public class FundingBot extends TelegramLongPollingBot {
         });
     }
 
+    @EventListener(SnapshotRefreshedEvent.class)
+    public void onSnapshotRefresh(SnapshotRefreshedEvent ev) {
+        // Можно за throttle-ить, но пока прямолинейно
+        previewRegistry.all().forEach((chatId, msgId) -> {
+            previewExecutor.execute(() -> {
+                try {
+                    String txt = buildPreviewText(chatId);
+                    edit(chatId, msgId, txt, previewKb());
+                } catch (Exception e) {
+                    log.warn("Auto refresh failed for chat {}", chatId, e);
+                }
+            });
+        });
+    }
+
     private String buildPreviewText(long chatId) {
         var s = repo.getOrDefault(chatId);
 
         Map<ExchangeType, List<FundingRateData>> snap = cache.getLastSnapshot();
         if (snap.isEmpty() || cache.isStale()) {
-            snap = cache.forceRefresh(Duration.ofSeconds(5));
+            snap = cache.forceRefresh(Duration.ofSeconds(15));
         }
         if (snap.isEmpty()) {
-            return "Данные обновляются, обнови через 1-2 мин.";
+            return "Данные обновляются, подождите пару минут";
         }
 
         var list = snap.entrySet().stream()
@@ -381,12 +401,14 @@ public class FundingBot extends TelegramLongPollingBot {
     }
 
     private void showExchangeToggles(long chatId, Integer msgId) {
-        FundingAlertSettings s = repo.getOrDefault(chatId);
-        Set<ExchangeType> set = s.exchanges();
+        var s = repo.getOrDefault(chatId);
+        EnumSet<ExchangeType> sel =
+                s.exchanges().isEmpty() ? EnumSet.noneOf(ExchangeType.class)
+                        : EnumSet.copyOf(s.exchanges());
 
         List<List<InlineKeyboardButton>> rows = Arrays.stream(ExchangeType.values())
                 .map(ex -> {
-                    boolean on = set.isEmpty() || set.contains(ex);
+                    boolean on = sel.isEmpty() || sel.contains(ex);
                     return List.of(btn((on ? "✅ " : "❌ ") + ex.name(), "EX_" + ex.name()));
                 })
                 .toList();
@@ -395,6 +417,8 @@ public class FundingBot extends TelegramLongPollingBot {
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup(rows);
 
         edit(chatId, msgId, "Биржи (нажимай, чтобы переключать):", kb);
+
+        repo.save(s.withExchanges(Set.copyOf(sel)));
     }
 
     private void toggleExchange(long chatId, String exStr) {
