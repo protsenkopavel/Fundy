@@ -1,7 +1,9 @@
 package net.protsenko.fundy.app.mapper;
 
 import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.FundingRateEx;
 import net.protsenko.fundy.app.dto.FundingRateView;
+import net.protsenko.fundy.app.dto.FundingRateViewEx;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -34,6 +36,21 @@ public final class FundingMapper {
                 src.nextFundingTimeMs(),
                 nextZdt.format(ISO_FMT),
                 countdown
+        );
+    }
+
+    public static FundingRateViewEx toView(
+            FundingRateEx src, ZoneId zone) {
+
+        FundingRateData d = src.data();
+        return new FundingRateViewEx(
+                src.exchange().name(),
+                d.instrument().nativeSymbol(),
+                d.fundingRate(),
+                Instant.ofEpochMilli(d.nextFundingTimeMs())
+                        .atZone(zone)
+                        .toLocalTime()
+                        .toString()
         );
     }
 

@@ -1,8 +1,8 @@
 package net.protsenko.fundy.app.controller;
 
 import lombok.RequiredArgsConstructor;
-import net.protsenko.fundy.app.dto.FundingRateData;
 import net.protsenko.fundy.app.dto.FundingRateView;
+import net.protsenko.fundy.app.dto.FundingRateViewEx;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.mapper.FundingMapper;
 import net.protsenko.fundy.app.service.FundingScannerService;
@@ -19,14 +19,26 @@ public class FundingController {
     private final FundingScannerService scanner;
 
     @GetMapping("/{exchange}/funding/high")
-    public List<FundingRateView> highFunding(
+    public List<FundingRateView> highFundingByExchange(
             @PathVariable ExchangeType exchange,
             @RequestParam(defaultValue = "0.001") double minRate,
-            @RequestParam String tz
-    ) {
+            @RequestParam String tz) {
+
         ZoneId zone = resolveZone(tz);
-        List<FundingRateData> raw = scanner.findHighFundingRates(exchange, minRate);
-        return raw.stream().map(fr -> FundingMapper.toView(fr, zone)).toList();
+        return scanner.findHighFundingRates(exchange, minRate).stream()
+                .map(fr -> FundingMapper.toView(fr, zone))
+                .toList();
+    }
+
+    @GetMapping("/funding/high")
+    public List<FundingRateViewEx> highFundingAll(
+            @RequestParam(defaultValue = "0.001") double minRate,
+            @RequestParam String tz) {
+
+        ZoneId zone = resolveZone(tz);
+        return scanner.findHighFundingRatesAll(minRate).stream()
+                .map(fr -> FundingMapper.toView(fr, zone))
+                .toList();
     }
 
     private ZoneId resolveZone(String tz) {

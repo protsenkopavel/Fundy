@@ -2,11 +2,7 @@ spring:
   application:
     name: Fundy
   cache:
-    type: redis
-  data:
-    redis:
-      host: ${REDIS_HOST:redis}
-      port: ${REDIS_PORT_INTERNAL:6379}
+    type: caffeine
 
 fundy:
   exchanges:
