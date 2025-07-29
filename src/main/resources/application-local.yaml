@@ -74,13 +74,13 @@ server:
 
 logging:
   level:
-    org.springframework.web: INFO
+    root: INFO
 
 management:
   endpoints:
     web:
       exposure:
-        include: '*'
+        include: health, metrics, prometheus
   prometheus:
     metrics:
       export:

@@ -19,8 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -30,6 +30,8 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
 public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
 
     private static final int MAX_PARALLEL = 48;
+    private final ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL);
+
     private volatile Map<String, TradingInstrument> symbolIndex;
 
     public OkxExchangeClient(OkxConfig config) {
@@ -143,30 +145,18 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
                 .filter(i -> i.nativeSymbol().endsWith("-USDT-SWAP"))
                 .toList();
 
-        Semaphore gate = new Semaphore(MAX_PARALLEL);
-        Executor exec = Runnable::run;
-
         List<CompletableFuture<FundingRateData>> futures = instruments.stream()
                 .map(inst -> CompletableFuture.supplyAsync(() -> {
                     try {
-                        gate.acquire();
                         return getFundingRate(inst);
                     } catch (Exception e) {
                         return null;
-                    } finally {
-                        gate.release();
                     }
-                }, exec))
+                }, pool))
                 .toList();
 
         return futures.stream()
-                .map(f -> {
-                    try {
-                        return f.get();
-                    } catch (Exception e) {
-                        return null;
-                    }
-                })
+                .map(CompletableFuture::join)
                 .filter(Objects::nonNull)
                 .toList();
     }
