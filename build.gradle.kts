@@ -31,6 +31,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.2")
+    implementation("org.telegram:telegrambots:6.9.7.1")
 
     compileOnly("org.projectlombok:lombok")
 

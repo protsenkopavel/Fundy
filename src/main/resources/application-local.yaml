@@ -66,6 +66,12 @@ fundy:
       base-url: https://api.hbdm.com
       timeout: 10
       enabled: true
+  notifier:
+    scan-delay: PT2M
+
+telegram.bot:
+  username: ${TELEGRAM_USERNAME:fundy_test_bot}
+  token: ${TELEGRAM_TOKEN:8488687885:AAEhj_3hIMzWs3NTDweH07_5Yf5mST49kOg}
 
 server:
   port: 8082
