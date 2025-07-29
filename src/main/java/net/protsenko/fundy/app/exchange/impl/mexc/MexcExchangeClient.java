@@ -9,7 +9,6 @@ import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.util.List;
@@ -17,6 +16,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
 
 @Component
 public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
@@ -73,12 +74,12 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
         MexcTickerItem i = resp.data();
         return new TickerData(
                 instrument,
-                parseD(i.lastPrice()),
-                parseD(i.bid1Price()),
-                parseD(i.ask1Price()),
-                parseD(i.high24Price()),
-                parseD(i.low24Price()),
-                parseD(i.volume24()),
+                d(i.lastPrice()),
+                d(i.bid1Price()),
+                d(i.ask1Price()),
+                d(i.high24Price()),
+                d(i.low24Price()),
+                d(i.volume24()),
                 System.currentTimeMillis()
         );
     }
@@ -103,8 +104,8 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
 
         return new FundingRateData(
                 instrument,
-                parseBD(d.fundingRate()),
-                parseLong(d.fundingTime())
+                bd(d.fundingRate()),
+                l(d.fundingTime())
         );
     }
 
@@ -122,8 +123,8 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
                         if (inst == null) return null;
                         return new FundingRateData(
                                 inst,
-                                parseBD(item.fundingRate()),
-                                parseLong(item.fundingTime())
+                                bd(item.fundingRate()),
+                                l(item.fundingTime())
                         );
                     })
                     .filter(Objects::nonNull)
@@ -149,32 +150,5 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
         return instrument.nativeSymbol() != null
                 ? instrument.nativeSymbol()
                 : instrument.baseAsset() + "_" + instrument.quoteAsset();
-    }
-
-    private double parseD(String s) {
-        if (s == null || s.isBlank()) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    private BigDecimal parseBD(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private long parseLong(String s) {
-        if (s == null || s.isBlank()) return 0L;
-        try {
-            return Long.parseLong(s);
-        } catch (Exception e) {
-            return 0L;
-        }
     }
 }

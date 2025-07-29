@@ -9,7 +9,6 @@ import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.util.ArrayList;
@@ -19,6 +18,9 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.l;
+
 
 @Component
 public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
@@ -27,24 +29,6 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
 
     public BybitExchangeClient(BybitConfig config) {
         super(config);
-    }
-
-    private static BigDecimal safeBD(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private static long safeLong(String s) {
-        if (s == null || s.isBlank()) return 0L;
-        try {
-            return Long.parseLong(s);
-        } catch (Exception e) {
-            return 0L;
-        }
     }
 
     @Override
@@ -99,7 +83,7 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
                     (response != null ? response.retMsg() : "null response"));
         }
 
-        BybitTickerItem item = response.result().list().get(0);
+        BybitTickerItem item = response.result().list().getFirst();
         return new TickerData(
                 instrument,
                 Double.parseDouble(item.lastPrice()),
@@ -145,8 +129,8 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
         BybitTickerItem i = resp.result().list().get(0);
         return new FundingRateData(
                 instrument,
-                safeBD(i.fundingRate()),
-                safeLong(i.nextFundingTime())
+                bd(i.fundingRate()),
+                l(i.nextFundingTime())
         );
     }
 
@@ -165,8 +149,8 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
         if (inst == null) return null;
         return new FundingRateData(
                 inst,
-                safeBD(item.fundingRate()),
-                safeLong(item.nextFundingTime())
+                bd(item.fundingRate()),
+                l(item.nextFundingTime())
         );
     }
 }

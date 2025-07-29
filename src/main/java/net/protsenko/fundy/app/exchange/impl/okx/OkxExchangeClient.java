@@ -24,10 +24,12 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
+
 @Component
 public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
 
-    private static final int MAX_PARALLEL = 36;
+    private static final int MAX_PARALLEL = 48;
     private volatile Map<String, TradingInstrument> symbolIndex;
 
     public OkxExchangeClient(OkxConfig config) {
@@ -72,16 +74,6 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
         String base = parts.length > 0 ? parts[0] : "";
         String quote = parts.length > 1 ? parts[1] : "";
         return new TradingInstrument(base, quote, InstrumentType.PERPETUAL, it.instId());
-    }
-
-    private Map<String, TradingInstrument> symbolIndex() {
-        Map<String, TradingInstrument> local = symbolIndex;
-        if (local == null) {
-            local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
-            symbolIndex = local;
-        }
-        return local;
     }
 
     private String ensureSymbol(TradingInstrument inst) {
@@ -177,32 +169,5 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
                 })
                 .filter(Objects::nonNull)
                 .toList();
-    }
-
-    private double d(String s) {
-        if (s == null || s.isBlank()) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    private BigDecimal bd(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private long l(String s) {
-        if (s == null || s.isBlank()) return 0L;
-        try {
-            return Long.parseLong(s);
-        } catch (Exception e) {
-            return 0L;
-        }
     }
 }

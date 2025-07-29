@@ -21,6 +21,9 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
+
 @Component
 public class GateioExchangeClient extends AbstractExchangeClient<GateioConfig> {
 
@@ -160,23 +163,5 @@ public class GateioExchangeClient extends AbstractExchangeClient<GateioConfig> {
                 })
                 .filter(Objects::nonNull)
                 .toList();
-    }
-
-    private double d(String s) {
-        if (s == null || s.isBlank()) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    private BigDecimal bd(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
     }
 }

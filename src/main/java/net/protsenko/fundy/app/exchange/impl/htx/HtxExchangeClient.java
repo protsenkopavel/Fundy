@@ -20,6 +20,9 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.l;
+
 @Component
 public class HtxExchangeClient extends AbstractExchangeClient<HtxConfig> {
 
@@ -178,23 +181,5 @@ public class HtxExchangeClient extends AbstractExchangeClient<HtxConfig> {
     private TickerData emptyTicker(TradingInstrument inst) {
         return new TickerData(inst, Double.NaN, Double.NaN, Double.NaN,
                 Double.NaN, Double.NaN, 0.0, System.currentTimeMillis());
-    }
-
-    private BigDecimal bd(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
-    }
-
-    private long l(String s) {
-        if (s == null || s.isBlank()) return 0L;
-        try {
-            return Long.parseLong(s);
-        } catch (Exception e) {
-            return 0L;
-        }
     }
 }

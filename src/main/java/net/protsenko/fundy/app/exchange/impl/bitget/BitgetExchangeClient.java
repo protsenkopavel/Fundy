@@ -20,6 +20,9 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
+
 @Component
 public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
 
@@ -170,23 +173,5 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
         long next = ((now / EIGHT_HOURS_MS) + 1) * EIGHT_HOURS_MS;
         nextFundingGlobalMs = next;
         return next;
-    }
-
-    private double d(String s) {
-        if (s == null || s.isBlank()) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    private BigDecimal bd(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
     }
 }

@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +19,8 @@ import java.time.Duration;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
 
 @Component
 public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
@@ -147,19 +148,15 @@ public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
         );
     }
 
-    private boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
     private HttpRequest signedGet(String path, Map<String, String> params) {
-        if (isBlank(config.getApiKey()) || isBlank(config.getSecretKey())) {
+        if (blank(config.getApiKey()) || blank(config.getSecretKey())) {
             return unsignedGet(path, params);
         }
 
         Map<String, String> p = new TreeMap<>();
         if (params != null) {
             params.forEach((k, v) -> {
-                if (!isBlank(k) && v != null) p.put(k, v);
+                if (blank(k) && v != null) p.put(k, v);
             });
         }
         p.put("timestamp", String.valueOf(System.currentTimeMillis()));
@@ -189,14 +186,14 @@ public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
 
     private String buildQuery(Map<String, String> params) {
         return params.entrySet().stream()
-                .filter(e -> !isBlank(e.getKey()) && e.getValue() != null)
+                .filter(e -> !blank(e.getKey()) && e.getValue() != null)
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> e.getKey() + "=" + e.getValue())
                 .collect(Collectors.joining("&"));
     }
 
     private String hmacSha256Hex(String data, String secret) {
-        if (isBlank(secret)) throw new IllegalArgumentException("Empty key");
+        if (blank(secret)) throw new IllegalArgumentException("Empty key");
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
@@ -206,24 +203,6 @@ public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
             return sb.toString();
         } catch (Exception e) {
             throw new IllegalStateException(e);
-        }
-    }
-
-    private double d(String s) {
-        if (s == null || s.isBlank()) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    private BigDecimal bd(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
         }
     }
 }

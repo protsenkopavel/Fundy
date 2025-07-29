@@ -9,13 +9,15 @@ import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
 
 @Component
 public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
@@ -81,12 +83,12 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
 
         return new TickerData(
                 instrument,
-                parseD(td.price()),
-                parseD(td.bestBidPrice()),
-                parseD(td.bestAskPrice()),
-                parseD(c.highPrice()),
-                parseD(c.lowPrice()),
-                parseD(c.volumeOf24h()),
+                d(td.price()),
+                d(td.bestBidPrice()),
+                d(td.bestAskPrice()),
+                d(c.highPrice()),
+                d(c.lowPrice()),
+                d(c.volumeOf24h()),
                 System.currentTimeMillis()
         );
     }
@@ -96,7 +98,7 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
         KucoinContractItem c = contract(instrument.nativeSymbol());
         return new FundingRateData(
                 instrument,
-                parseBD(c.fundingFeeRate()),
+                bd(c.fundingFeeRate()),
                 c.nextFundingRateDateTime()
         );
     }
@@ -108,7 +110,7 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
                 .filter(c -> "Open".equalsIgnoreCase(c.status()))
                 .map(c -> new FundingRateData(
                         dict.get(c.symbol()),
-                        parseBD(c.fundingFeeRate()),
+                        bd(c.fundingFeeRate()),
                         c.nextFundingRateDateTime()
                 ))
                 .toList();
@@ -136,23 +138,5 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
             local = rawContractIndex;
         }
         return local;
-    }
-
-    private double parseD(String s) {
-        if (s == null || s.isBlank()) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    private BigDecimal parseBD(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
     }
 }

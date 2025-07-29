@@ -20,6 +20,9 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
+
 @Component
 public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
 
@@ -30,7 +33,7 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
         super(config);
     }
 
-    private static long calcNextFundingMs(long fundingTimeField) {
+    private long calcNextFundingMs(long fundingTimeField) {
         long now = System.currentTimeMillis();
         if (fundingTimeField <= 0) return now;
 
@@ -151,8 +154,6 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
         Map<String, CoinexTickerItem> map = tickerAllMap();
         Map<String, TradingInstrument> dict = symbolIndex();
 
-        long now = System.currentTimeMillis();
-
         return map.entrySet().stream()
                 .map(e -> {
                     TradingInstrument inst = dict.get(e.getKey());
@@ -189,23 +190,5 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
             throw new ExchangeException("CoinEx ticker/all error: " + (resp != null ? resp.message() : "null"));
         }
         return resp.data().ticker();
-    }
-
-    private double d(String s) {
-        if (s == null || s.isBlank()) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
-    private BigDecimal bd(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try {
-            return new BigDecimal(s);
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
-        }
     }
 }
