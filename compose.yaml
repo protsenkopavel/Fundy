@@ -1,23 +1,32 @@
 services:
+  fundy-db:
+    image: postgres:16.9
+    ports:
+      - "${DB_PORT_EXTERNAL}:${DB_PORT_INTERNAL}"
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-fundy_db}
+      PGPORT: ${DB_PORT_INTERNAL:-5432}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${DB_USER} -p $${PGPORT}" ]
   fundy:
     build: .
-    container_name: fundy
     ports:
-      - "${SERVER_PORT_EXTERNAL:-8080}:${SERVER_PORT_INTERNAL:-8080}"
+      - "${SERVER_PORT_EXTERNAL}:${SERVER_PORT_INTERNAL}"
     environment:
-      - SERVER_HOST=${SERVER_HOST:-0.0.0.0}
-      - SERVER_PORT=${SERVER_PORT_INTERNAL:-8080}
-      - SPRING_PROFILES_ACTIVE=${SERVER_SPRING_PROFILE:-local}
+      - SERVER_HOST=${SERVER_HOST}
+      - SERVER_PORT=${SERVER_PORT_INTERNAL}
+      - SPRING_PROFILES_ACTIVE=${SERVER_SPRING_PROFILE}
       - TELEGRAM_USERNAME=${TELEGRAM_USERNAME}
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
-    networks:
-      - app-net
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_USER=${DB_USER}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT_INTERNAL=${DB_PORT_INTERNAL}
+      - DB_NAME=${DB_NAME}
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://${SERVER_HOST:-0.0.0.0}:${SERVER_PORT_INTERNAL:-8080}/actuator/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      test: [ "CMD", "curl", "-f", "http://${SERVER_HOST}:${SERVER_PORT_INTERNAL}/actuator/health" ]
 
 networks:
   app-net:

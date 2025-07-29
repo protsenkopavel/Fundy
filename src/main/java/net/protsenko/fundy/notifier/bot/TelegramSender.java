@@ -21,6 +21,8 @@ public class TelegramSender {
         SendMessage sm = SendMessage.builder()
                 .chatId(String.valueOf(chatId))
                 .text(text)
+                .parseMode("HTML")
+                .disableWebPagePreview(true)
                 .replyMarkup(kb)
                 .build();
         try {
