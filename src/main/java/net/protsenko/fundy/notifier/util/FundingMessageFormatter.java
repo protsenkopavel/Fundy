@@ -14,7 +14,7 @@ import java.time.format.DateTimeFormatter;
 
 public final class FundingMessageFormatter {
 
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
 
     private FundingMessageFormatter() {}
 
@@ -22,46 +22,48 @@ public final class FundingMessageFormatter {
                                 ExchangeType ex,
                                 ZoneId zone) {
 
-        BigDecimal percent = fr.fundingRate().multiply(BigDecimal.valueOf(100))
-                .setScale(2, RoundingMode.HALF_UP); // 2 знака
+        BigDecimal pct = fr.fundingRate()
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP);
 
-        String sign = percent.signum() >= 0 ? "🟥" : "🟢";
+        String emoji = pct.signum() >= 0 ? "🟥" : "🟢";
 
-        String timePart = "";
-        long ms = fr.nextFundingTimeMs();
-        if (ms > 0) {
-            Instant next = Instant.ofEpochMilli(ms);
-            ZonedDateTime zdt = next.atZone(zone);
-            Duration left = Duration.between(Instant.now(), next);
-            if (left.isNegative()) left = Duration.ZERO;
-            timePart = "  %s (%s осталось)".formatted(
-                    zdt.format(TIME_FMT),
-                    prettyDuration(left)
-            );
-        }
+        String timeBlock = buildTimeBlock(fr.nextFundingTimeMs(), zone);
 
         String url = ExchangeLinkResolver.link(ex, fr.instrument());
-        String exchangeHtml = url.isBlank()
-                ? ex.name()
-                : "<a href=\"" + url + "\">" + ex.name() + "</a>";
 
-        // Пример строки:
-        // 🟢 <a href="...">BYBIT</a> · NEWT -0.85%  08:00 (06:41 осталось)
-        return "%s %s · %s %s%%%s"
+        /* пример:
+           🟢 <a href="…">BYBIT</a> · KNC -0.54%  19:00ч (3 ч 53 м осталось)
+         */
+        return "%s <a href=\"%s\">%s</a> · %s %s%%%s"
                 .formatted(
-                        sign,
-                        exchangeHtml,
+                        emoji,
+                        url,
+                        ex.name(),
                         fr.instrument().baseAsset(),
-                        percent.stripTrailingZeros().toPlainString(),
-                        timePart
+                        pct.stripTrailingZeros().toPlainString(),
+                        timeBlock
                 );
     }
 
+    /* ---------- helpers ---------- */
+
+    private static String buildTimeBlock(long nextMs, ZoneId zone) {
+        if (nextMs <= 0) return "";
+        ZonedDateTime next = Instant.ofEpochMilli(nextMs).atZone(zone);
+        Duration left = Duration.between(Instant.now(), next);
+        if (left.isNegative()) left = Duration.ZERO;
+
+        return "  %sч (%s осталось)"
+                .formatted(next.format(HH_MM), prettyDuration(left));
+    }
+
+    /** «3 ч 53 м», «25 м», «5 ч» */
     public static String prettyDuration(Duration d) {
         long h = d.toHours();
         long m = d.toMinutesPart();
-        long s = d.toSecondsPart();
-        if (h > 0) return String.format("%02d:%02d:%02d", h, m, s);
-        return String.format("%02d:%02d", m, s);
+        if (h > 0 && m > 0) return "%d ч %d м".formatted(h, m);
+        if (h > 0)          return "%d ч".formatted(h);
+        return "%d м".formatted(m);
     }
 }

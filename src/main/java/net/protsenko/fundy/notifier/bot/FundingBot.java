@@ -358,8 +358,11 @@ public class FundingBot extends TelegramLongPollingBot {
 
         StringBuilder sb = new StringBuilder(header);
         for (var e : list) {
-            sb.append(FundingMessageFormatter.format(e.getValue(), e.getKey(), s.zone()))
-                    .append("\n");
+            sb.append(FundingMessageFormatter.format(
+                    e.getValue(),         // fr
+                    e.getKey(),           // ex
+                    s.zone()              // tz
+            )).append("\n");
         }
         return sb.toString().trim();
     }
@@ -402,9 +405,11 @@ public class FundingBot extends TelegramLongPollingBot {
 
     private void showExchangeToggles(long chatId, Integer msgId) {
         var s = repo.getOrDefault(chatId);
-        EnumSet<ExchangeType> sel =
-                s.exchanges().isEmpty() ? EnumSet.noneOf(ExchangeType.class)
-                        : EnumSet.copyOf(s.exchanges());
+
+        // делаем изменяемую копию
+        EnumSet<ExchangeType> sel = s.exchanges().isEmpty()
+                ? EnumSet.noneOf(ExchangeType.class)
+                : EnumSet.copyOf(s.exchanges());
 
         List<List<InlineKeyboardButton>> rows = Arrays.stream(ExchangeType.values())
                 .map(ex -> {
@@ -418,7 +423,7 @@ public class FundingBot extends TelegramLongPollingBot {
 
         edit(chatId, msgId, "Биржи (нажимай, чтобы переключать):", kb);
 
-        repo.save(s.withExchanges(Set.copyOf(sel)));
+        repo.save(s.withExchanges(Set.copyOf(sel)));   // сохраняем
     }
 
     private void toggleExchange(long chatId, String exStr) {
