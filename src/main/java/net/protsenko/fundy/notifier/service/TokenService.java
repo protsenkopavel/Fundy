@@ -18,7 +18,7 @@ public class TokenService {
     private final RegTokenRepo repo;
 
     public String createToken(Duration ttl) {
-        String uuid = UUID.randomUUID().toString();   // ровно 36 символов
+        String uuid = UUID.randomUUID().toString();
         repo.save(new RegToken(uuid, Instant.now(),
                 Instant.now().plus(ttl), false));
         return uuid;

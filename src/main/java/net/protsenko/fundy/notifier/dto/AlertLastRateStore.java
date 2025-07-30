@@ -11,8 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AlertLastRateStore {
     private final Map<AlertKey, BigDecimal> map = new ConcurrentHashMap<>();
 
-    public BigDecimal put(AlertKey k, BigDecimal rate) {
-        return map.put(k, rate);
+    public void put(AlertKey k, BigDecimal rate) {
+        map.put(k, rate);
     }
 
     public Optional<BigDecimal> get(AlertKey k) {

@@ -17,8 +17,13 @@ public class UserSettingsRepo {
 
     public FundingAlertSettings getOrDefault(long chatId) {
         return map.getOrDefault(chatId,
-                new FundingAlertSettings(chatId, new BigDecimal("0.005"),
-                        Set.of(), Duration.ofMinutes(30), ZoneId.systemDefault()));
+                new FundingAlertSettings(chatId,
+                        new BigDecimal("0.005"),
+                        Set.of(),
+                        Duration.ofMinutes(30),
+                        ZoneId.systemDefault(),
+                        Duration.ofMinutes(60)
+                ));
     }
 
     public void save(FundingAlertSettings s) {

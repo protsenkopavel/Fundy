@@ -20,14 +20,14 @@ public final class FundingMessageFormatter {
                                 ZoneId zone) {
 
         String emoji = fr.fundingRate().signum() >= 0 ? "🟥" : "🟢";
-        String time  = Instant.ofEpochMilli(fr.nextFundingTimeMs())
+        String time = Instant.ofEpochMilli(fr.nextFundingTimeMs())
                 .atZone(zone)
                 .format(DateTimeFormatter.ofPattern("HH:mm"));
-        String left  = prettyDuration(Duration.between(
+        String left = prettyDuration(Duration.between(
                 Instant.now(),
                 Instant.ofEpochMilli(fr.nextFundingTimeMs())));
 
-        String url   = ExchangeLinkResolver.link(ex, fr.instrument());
+        String url = ExchangeLinkResolver.link(ex, fr.instrument());
 
         return "%s <b>%s</b>  %s  %s (%s)  <a href=\"%s\">%s</a>"
                 .formatted(emoji,
@@ -53,9 +53,7 @@ public final class FundingMessageFormatter {
     }
 
     public static String pct(BigDecimal p) {
-        return p.multiply(BigDecimal.valueOf(100))
-                .setScale(2, RoundingMode.HALF_UP)
-                .stripTrailingZeros()
-                .toPlainString() + " %";
+        return p.setScale(2, RoundingMode.HALF_UP)
+                .stripTrailingZeros().toPlainString() + "%";
     }
 }

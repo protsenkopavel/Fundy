@@ -226,6 +226,7 @@ public class FundingBot extends TelegramLongPollingBot {
             case "/ping" -> send(chatId, "pong", null);
             case "/register" -> handleRegister(chatId, args);
             case "/newtoken" -> handleNewToken(chatId, args);
+            case "/bucket" -> handleSlashBucket(chatId, args);
             default -> send(chatId, "Команда не распознана. Попробуй /help", null);
         }
     }
@@ -248,6 +249,13 @@ public class FundingBot extends TelegramLongPollingBot {
                     ZoneId z = ZoneId.of(text);
                     repo.save(old.withZone(z));
                     send(chatId, "Часовой пояс: " + z, null);
+                }
+                case WAIT_BUCKET -> {
+                    Duration d = parseDuration(text);
+                    repo.save(old.withBucket(d));
+                    send(chatId, "Частота обновлений: " + FundingMessageFormatter.prettyDuration(d), null);
+                    stateStore.set(chatId, BotState.NONE);
+                    sendMenuNew(chatId);
                 }
             }
             stateStore.set(chatId, BotState.NONE);
@@ -319,7 +327,7 @@ public class FundingBot extends TelegramLongPollingBot {
         try {
             BigDecimal p = new BigDecimal(args).divide(BigDecimal.valueOf(100));
             var old = repo.getOrDefault(chatId);
-            repo.save(new FundingAlertSettings(chatId, p, old.exchanges(), old.notifyBefore(), old.zone()));
+            repo.save(new FundingAlertSettings(chatId, p, old.exchanges(), old.notifyBefore(), old.zone(), old.bucketSize()));
             send(chatId, "Мин. ставка: " + p.multiply(BigDecimal.valueOf(100)) + "%", null);
         } catch (Exception e) {
             send(chatId, "Не понял число. Пример: /min 0.5", null);
@@ -334,7 +342,7 @@ public class FundingBot extends TelegramLongPollingBot {
         try {
             Duration d = parseDuration(args);
             var old = repo.getOrDefault(chatId);
-            repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), old.exchanges(), d, old.zone()));
+            repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), old.exchanges(), d, old.zone(), old.bucketSize()));
             send(chatId, "Время до начисления: " + FundingMessageFormatter.prettyDuration(d), null);
         } catch (Exception e) {
             send(chatId, "Не понял интервал. Пример: /before 30m", null);
@@ -349,10 +357,29 @@ public class FundingBot extends TelegramLongPollingBot {
         try {
             ZoneId z = ZoneId.of(args);
             var old = repo.getOrDefault(chatId);
-            repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), old.exchanges(), old.notifyBefore(), z));
+            repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), old.exchanges(), old.notifyBefore(), z, old.bucketSize()));
             send(chatId, "Часовой пояс: " + z, null);
         } catch (Exception e) {
             send(chatId, "Не понял TZ. Пример: /tz Europe/Moscow", null);
+        }
+    }
+
+    private void handleSlashBucket(long chatId, String args) {
+        if (args.isBlank()) {
+            send(chatId, "Пример: /bucket 30m  или /bucket 1h", null);
+            return;
+        }
+        try {
+            Duration d = parseDuration(args);
+            if (d.compareTo(Duration.ofMinutes(5)) < 0) {
+                send(chatId, "Минимальная частота обновлений 5 мин.", null);
+                return;
+            }
+            var old = repo.getOrDefault(chatId);
+            repo.save(old.withBucket(d));
+            send(chatId, "Частота обновлений: " + FundingMessageFormatter.prettyDuration(d), null);
+        } catch (Exception e) {
+            send(chatId, "Не понял интервал. Пример: /bucket 30m", null);
         }
     }
 
@@ -406,6 +433,10 @@ public class FundingBot extends TelegramLongPollingBot {
             case "ADMIN_NEW_TOKEN" -> {
                 String url = tokenService.createDeepLink(getBotUsername(), Duration.ofHours(24));
                 send(chatId, "Ссылка для регистрации (24 ч):\n" + url, null);
+            }
+            case "SET_BUCKET" -> {
+                stateStore.set(chatId, BotState.WAIT_BUCKET);
+                edit(chatId, msgId, "Введи частоту обновлений, напр. 30m или 1h", null);
             }
             case "SHOW_REGISTER" -> edit(chatId, msgId, "Отправьте /register &lt;токен&gt;", null);
             default -> {
@@ -508,7 +539,11 @@ public class FundingBot extends TelegramLongPollingBot {
         var list = snap.entrySet().stream()
                 .filter(e -> s.exchanges().isEmpty() || s.exchanges().contains(e.getKey()))
                 .flatMap(e -> e.getValue().stream().map(fr -> Map.entry(e.getKey(), fr)))
-                .filter(e -> e.getValue().fundingRate().abs().compareTo(s.minAbsRate()) >= 0)
+                .filter(e -> {
+                    FundingRateData fr = e.getValue();
+                    return fr.nextFundingTimeMs() > System.currentTimeMillis()
+                            && fr.fundingRate().abs().compareTo(s.minAbsRate()) >= 0;
+                })
                 .sorted(Comparator.comparing(
                         (Map.Entry<ExchangeType, FundingRateData> e)
                                 -> e.getValue().fundingRate().abs()).reversed())
@@ -550,11 +585,13 @@ public class FundingBot extends TelegramLongPollingBot {
                 • Мин. ставка: %s
                 • Биржи: %s
                 • Время до начисления: %s
+                • Частота обновлений: %s
                 • Часовой пояс: %s
                 """.formatted(
                 FundingMessageFormatter.pct(s.minAbsRate()),
                 s.exchanges().isEmpty() ? "ВСЕ" : s.exchanges(),
                 FundingMessageFormatter.prettyDuration(s.notifyBefore()),
+                FundingMessageFormatter.prettyDuration(s.bucketSize()),
                 s.zone());
     }
 
@@ -564,6 +601,7 @@ public class FundingBot extends TelegramLongPollingBot {
         rows.add(List.of(btn("🏦 Биржи", "SET_EXCH")));
         rows.add(List.of(btn("⏰ Время до начисления", "SET_BEFORE")));
         rows.add(List.of(btn("🌍 Timezone", "SET_TZ")));
+        rows.add(List.of(btn("🗑️ Частота обновлений", "SET_BUCKET")));
         rows.add(List.of(btn("👀 Топ сейчас", "PREVIEW")));
         if (accessGuard.isAdmin(chatId))
             rows.add(List.of(btn("⚙️ Админ‑меню", "ADMIN_MENU")));
@@ -598,7 +636,7 @@ public class FundingBot extends TelegramLongPollingBot {
         Set<ExchangeType> set = new HashSet<>(old.exchanges());
         if (set.isEmpty()) set.addAll(Arrays.asList(ExchangeType.values()));
         if (!set.add(ex)) set.remove(ex);
-        repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), set, old.notifyBefore(), old.zone()));
+        repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), set, old.notifyBefore(), old.zone(), old.bucketSize()));
     }
 
     private void showTzChoices(long chatId, int msgId) {

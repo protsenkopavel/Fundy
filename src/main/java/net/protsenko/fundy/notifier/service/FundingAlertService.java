@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -38,12 +39,10 @@ public class FundingAlertService {
     }
 
     /* ---------- helpers ---------- */
-
-    private void processUser(FundingAlertSettings s,
-                             Map<ExchangeType, List<FundingRateData>> snap) {
-
-        long bucket = System.currentTimeMillis() / Duration.ofMinutes(15).toMillis();
-
+    private void processUser(
+            FundingAlertSettings s,
+            Map<ExchangeType, List<FundingRateData>> snap
+    ) {
         for (var e : snap.entrySet()) {
             ExchangeType ex = e.getKey();
             if (!s.exchanges().isEmpty() && !s.exchanges().contains(ex)) continue;
@@ -52,14 +51,16 @@ public class FundingAlertService {
                 if (fr.fundingRate().abs().compareTo(s.minAbsRate()) < 0) continue;
                 if (timeTooEarlyOrLate(fr, s)) continue;
 
-                AlertKey key = new AlertKey(s.chatId(), ex,
-                        fr.instrument().nativeSymbol(), bucket);
+                long bucket = fr.nextFundingTimeMs() / Duration.ofMinutes(15).toMillis();
 
-                BigDecimal newRate = fr.fundingRate();
+                AlertKey key = new AlertKey(s.chatId(), ex, fr.instrument().nativeSymbol(), bucket);
+
+                BigDecimal newRate = fr.fundingRate()
+                        .setScale(2, RoundingMode.HALF_UP);
 
                 /* ---------- первый раз в бакете ---------- */
                 if (sentStore.markIfNotSent(key)) {
-                    sendNew(s, fr, ex, newRate);               // ⚡
+                    sendNew(s, fr, ex, newRate);
                     lastStore.put(key, newRate);
                     continue;
                 }
@@ -77,38 +78,35 @@ public class FundingAlertService {
     }
 
     /* util */
-    private void sendNew(FundingAlertSettings s, FundingRateData fr,
-                         ExchangeType ex, BigDecimal rate) {
+    private void sendNew(FundingAlertSettings s, FundingRateData fr, ExchangeType ex, BigDecimal rate) {
         String head = "⚡ <b>Новый фандинг > %s</b>:\n\n"
                 .formatted(FundingMessageFormatter.pct(s.minAbsRate()));
-        tg.sendMessage(s.chatId(), head +
-                FundingMessageFormatter.format(fr, ex, s.zone()));
+        tg.sendMessage(s.chatId(), head + FundingMessageFormatter.format(fr, ex, s.zone()));
     }
 
-    private void sendUpdate(FundingAlertSettings s,
-                            FundingRateData fr,
-                            ExchangeType ex,
-                            BigDecimal prev,
-                            BigDecimal now) {
+    private void sendUpdate(
+            FundingAlertSettings s,
+            FundingRateData fr,
+            ExchangeType ex,
+            BigDecimal prev,
+            BigDecimal now
+    ) {
+        BigDecimal prevRounded = prev.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal nowRounded = now.setScale(2, RoundingMode.HALF_UP);
 
-        // ↑ если ставка выросла, ↓ если упала (0 = «нет изменений», тогда не шлём)
-        String arrow = now.compareTo(prev) > 0 ? "↑" : "↓";
-        if (now.compareTo(prev) == 0) return;   // нечего обновлять
-
-        // подставляем стрелку сразу после процента
-        String newPct = FundingMessageFormatter.pct(now) + arrow;
+        if (nowRounded.equals(prevRounded)) return;
+        String arrow = nowRounded.compareTo(prevRounded) > 0 ? "↑" : "↓";
 
         String body = FundingMessageFormatter.format(fr, ex, s.zone())
-                .replace(FundingMessageFormatter.pct(now), newPct);
+                .replace(FundingMessageFormatter.pct(nowRounded),
+                        FundingMessageFormatter.pct(nowRounded) + arrow);
 
         tg.sendMessage(s.chatId(), "🔄 <b>Обновление:</b>\n\n" + body);
     }
 
-    private boolean timeTooEarlyOrLate(FundingRateData fr,
-                                       FundingAlertSettings s) {
+    private boolean timeTooEarlyOrLate(FundingRateData fr, FundingAlertSettings s) {
 
         long leftMs = fr.nextFundingTimeMs() - System.currentTimeMillis();
-        return leftMs < 0                    // начисление уже прошло
-                || leftMs > s.notifyBefore().toMillis(); // ещё далеко до события
+        return leftMs < 0 || leftMs > s.notifyBefore().toMillis();
     }
 }
