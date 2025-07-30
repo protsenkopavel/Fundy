@@ -539,8 +539,8 @@ public class FundingBot extends TelegramLongPollingBot {
     private String buildPreviewText(long chatId) {
         FundingAlertSettings s = repo.getOrDefault(chatId);
 
-        Map<ExchangeType, List<FundingRateData>> snap = cache.forceRefresh(Duration.ofSeconds(15));
-        if (snap.isEmpty() || cache.isStale()) snap = cache.forceRefresh(Duration.ofSeconds(15));
+        Map<ExchangeType, List<FundingRateData>> snap = cache.forceRefresh(Duration.ofSeconds(60));
+        if (snap.isEmpty() || cache.isStale()) snap = cache.forceRefresh(Duration.ofSeconds(1560));
         if (snap.isEmpty()) return "Данные обновляются, подождите пару минут";
 
         var list = snap.entrySet().stream()
@@ -554,7 +554,6 @@ public class FundingBot extends TelegramLongPollingBot {
                 .sorted(Comparator.comparing(
                         (Map.Entry<ExchangeType, FundingRateData> e)
                                 -> e.getValue().fundingRate().abs()).reversed())
-                .limit(10)
                 .toList();
 
         String header = String.format("Текущие фандинги > %s%n%n",
