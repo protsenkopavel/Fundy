@@ -11,11 +11,13 @@ import net.protsenko.fundy.notifier.service.FundingSnapshotCache;
 import net.protsenko.fundy.notifier.service.RegistrationService;
 import net.protsenko.fundy.notifier.service.TokenService;
 import net.protsenko.fundy.notifier.util.FundingMessageFormatter;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
@@ -25,6 +27,7 @@ import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -136,10 +139,12 @@ public class FundingBot extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         long chatId = extractChatId(update);
 
+        MDC.put("chatId", String.valueOf(chatId));
+        MDC.put("updateType", update.hasCallbackQuery() ? "callback" : "message");
+
         boolean registerCmd = isRegistrationCommand(update);
         boolean rawUuidToken = looksLikeUuidToken(update);
 
-        // блокируем всё, кроме регистрации, для незарегистрированных
         boolean startReg = isStartWithReg(update);
 
         if (chatId != 0 && !accessGuard.allowed(chatId)
@@ -157,6 +162,8 @@ public class FundingBot extends TelegramLongPollingBot {
             }
         } catch (Exception e) {
             log.error("Update handling error", e);
+        } finally {
+            MDC.clear();
         }
     }
 
@@ -235,9 +242,14 @@ public class FundingBot extends TelegramLongPollingBot {
         try {
             switch (st) {
                 case WAIT_MIN -> {
-                    BigDecimal p = new BigDecimal(text).divide(BigDecimal.valueOf(100));
+                    String norm = text.replace(',', '.');
+                    BigDecimal p = new BigDecimal(norm).movePointLeft(2);
                     repo.save(old.withMinAbsRate(p));
-                    send(chatId, "Мин. ставка: " + p.multiply(BigDecimal.valueOf(100)) + "%", null);
+                    String pct = p.multiply(BigDecimal.valueOf(100))
+                            .setScale(2, RoundingMode.HALF_UP)
+                            .stripTrailingZeros()
+                            .toPlainString() + "%";
+                    send(chatId, "Мин. ставка: " + pct, null);
                 }
                 case WAIT_BEFORE -> {
                     Duration d = parseDuration(text);
@@ -260,28 +272,25 @@ public class FundingBot extends TelegramLongPollingBot {
             stateStore.set(chatId, BotState.NONE);
             sendMenuNew(chatId);
         } catch (Exception e) {
-            send(chatId, "Не понял ввод. Попробуй ещё раз.", null);
+            reportUserError(chatId, "Не понял ввод. Попробуйте еще раз");
         }
     }
 
     /* ---------- /start ---------- */
 
     private void handleStart(long chatId, String args) {
-        // deep‑link: https://t.me/…?start=reg_<uuid>
         if (args.startsWith("reg_")) {
             String raw = args.substring(4).trim();
-            switch (registrationService.register(chatId, raw)) {
-                case OK -> {
-                    send(chatId, "✅ Регистрация успешна!", null);
-                    sendMenuNew(chatId);
-                }
-                default -> send(chatId, "⛔️ Токен неверен или просрочен.", null);
+            if (Objects.requireNonNull(registrationService.register(chatId, raw)) == RegistrationService.Result.OK) {
+                send(chatId, "Регистрация успешна!", null);
+                sendMenuNew(chatId);
+            } else {
+                send(chatId, "Токен неверен или просрочен.", null);
             }
             return;
         }
-        // обычный /start
         repo.save(repo.getOrDefault(chatId));
-        send(chatId, "Привет! Я буду присылать фандинги. Нажми /menu", null);
+        sendMenuNew(chatId);
     }
 
     private boolean isStartWithReg(Update upd) {
@@ -324,12 +333,17 @@ public class FundingBot extends TelegramLongPollingBot {
             return;
         }
         try {
-            BigDecimal p = new BigDecimal(args).divide(BigDecimal.valueOf(100));
+            String norm = args.replace(',', '.');
+            BigDecimal p = new BigDecimal(norm).movePointLeft(2);
             var old = repo.getOrDefault(chatId);
             repo.save(new FundingAlertSettings(chatId, p, old.exchanges(), old.notifyBefore(), old.zone(), old.bucketSize()));
-            send(chatId, "Мин. ставка: " + p.multiply(BigDecimal.valueOf(100)) + "%", null);
+            String pct = p.multiply(BigDecimal.valueOf(100))
+                    .setScale(2, RoundingMode.HALF_UP)
+                    .stripTrailingZeros()
+                    .toPlainString() + "%";
+            send(chatId, "Мин. ставка: " + pct, null);
         } catch (Exception e) {
-            send(chatId, "Не понял число. Пример: /min 0.5", null);
+            reportUserError(chatId, "Не понял число. Пример: /min 0.5");
         }
     }
 
@@ -344,7 +358,7 @@ public class FundingBot extends TelegramLongPollingBot {
             repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), old.exchanges(), d, old.zone(), old.bucketSize()));
             send(chatId, "Время до начисления: " + FundingMessageFormatter.prettyDuration(d), null);
         } catch (Exception e) {
-            send(chatId, "Не понял интервал. Пример: /before 30m", null);
+            reportUserError(chatId, "Не понял интервал. Пример: /before 30m");
         }
     }
 
@@ -359,7 +373,7 @@ public class FundingBot extends TelegramLongPollingBot {
             repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), old.exchanges(), old.notifyBefore(), z, old.bucketSize()));
             send(chatId, "Часовой пояс: " + z, null);
         } catch (Exception e) {
-            send(chatId, "Не понял TZ. Пример: /tz Europe/Moscow", null);
+            reportUserError(chatId, "Не понял TZ. Пример: /tz Europe/Moscow");
         }
     }
 
@@ -376,9 +390,10 @@ public class FundingBot extends TelegramLongPollingBot {
             }
             var old = repo.getOrDefault(chatId);
             repo.save(old.withBucket(d));
-            send(chatId, "Частота обновлений: " + FundingMessageFormatter.prettyDuration(d), null);
+            send(chatId, "Частота: " + FundingMessageFormatter.prettyDuration(d), null);
+            sendMenuNew(chatId);
         } catch (Exception e) {
-            send(chatId, "Не понял интервал. Пример: /bucket 30m", null);
+            reportUserError(chatId, "Не понял интервал. Пример: /bucket 30m");
         }
     }
 
@@ -529,7 +544,8 @@ public class FundingBot extends TelegramLongPollingBot {
     private String buildPreviewText(long chatId) {
         FundingAlertSettings s = repo.getOrDefault(chatId);
 
-        Map<ExchangeType, List<FundingRateData>> snap = cache.getLastSnapshot();
+        Map<ExchangeType, List<FundingRateData>> snap =
+                cache.forceRefresh(Duration.ofSeconds(15));
         if (snap.isEmpty() || cache.isStale())
             snap = cache.forceRefresh(Duration.ofSeconds(15));
         if (snap.isEmpty())
@@ -539,9 +555,9 @@ public class FundingBot extends TelegramLongPollingBot {
                 .filter(e -> s.exchanges().isEmpty() || s.exchanges().contains(e.getKey()))
                 .flatMap(e -> e.getValue().stream().map(fr -> Map.entry(e.getKey(), fr)))
                 .filter(e -> {
-                    FundingRateData fr = e.getValue();
-                    return fr.nextFundingTimeMs() > System.currentTimeMillis()
-                            && fr.fundingRate().abs().compareTo(s.minAbsRate()) >= 0;
+                    BigDecimal rate = e.getValue().fundingRate().abs();
+                    return rate.compareTo(s.minAbsRate()) >= 0
+                            && e.getValue().nextFundingTimeMs() > System.currentTimeMillis();
                 })
                 .sorted(Comparator.comparing(
                         (Map.Entry<ExchangeType, FundingRateData> e)
@@ -579,19 +595,25 @@ public class FundingBot extends TelegramLongPollingBot {
     }
 
     private String menuText(FundingAlertSettings s) {
+        String pct = s.minAbsRate()
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP)
+                .stripTrailingZeros()
+                .toPlainString() + "%";
         return """
                 ⚙️ Настройки:
                 • Мин. ставка: %s
                 • Биржи: %s
-                • Время до начисления: %s
-                • Частота обновлений: %s
+                • За сколько до: %s
+                • Частота: %s
                 • Часовой пояс: %s
                 """.formatted(
-                FundingMessageFormatter.pct(s.minAbsRate()),
+                pct,
                 s.exchanges().isEmpty() ? "ВСЕ" : s.exchanges(),
                 FundingMessageFormatter.prettyDuration(s.notifyBefore()),
                 FundingMessageFormatter.prettyDuration(s.bucketSize()),
-                s.zone());
+                s.zone()
+        );
     }
 
     private InlineKeyboardMarkup menuKb(long chatId) {
@@ -661,39 +683,25 @@ public class FundingBot extends TelegramLongPollingBot {
     }
 
     private void send(long chatId, String text, InlineKeyboardMarkup kb) {
-        try {
-            execute(SendMessage.builder()
-                    .chatId(String.valueOf(chatId))
-                    .text(text)
-                    .parseMode("HTML")
-                    .disableWebPagePreview(true)
-                    .replyMarkup(kb)
-                    .build());
-        } catch (Exception e) {
-            log.warn("Send failed", e);
-        }
+        SendMessage sm = SendMessage.builder()
+                .chatId(String.valueOf(chatId))
+                .text(text)
+                .parseMode("HTML")
+                .disableWebPagePreview(true)
+                .replyMarkup(kb)
+                .build();
+        safeExecute(sm, chatId, "send");
     }
 
     private void edit(long chatId, Integer msgId, String text, InlineKeyboardMarkup kb) {
-        try {
-            EditMessageText em = new EditMessageText();
-            em.setChatId(String.valueOf(chatId));
-            em.setMessageId(msgId);
-            em.setText(text);
-            em.setParseMode("HTML");
-            em.setDisableWebPagePreview(true);
-            em.setReplyMarkup(kb);
-
-            execute(em);
-
-        } catch (org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException e) {
-            if (e.getApiResponse() == null ||
-                    !e.getApiResponse().contains("message is not modified")) {
-                log.warn("Edit failed", e);
-            }
-        } catch (Exception e) {
-            log.warn("Edit failed", e);
-        }
+        EditMessageText em = new EditMessageText();
+        em.setChatId(String.valueOf(chatId));
+        em.setMessageId(msgId);
+        em.setText(text);
+        em.setParseMode("HTML");
+        em.setDisableWebPagePreview(true);
+        em.setReplyMarkup(kb);
+        safeExecute(em, chatId, "edit");
     }
 
     private Duration parseDuration(String src) {
@@ -711,5 +719,27 @@ public class FundingBot extends TelegramLongPollingBot {
         } catch (Exception e) {
             return def;
         }
+    }
+
+    private void safeExecute(BotApiMethod<?> method, long chatId, String op) {
+        try {
+            execute(method);
+        } catch (TelegramApiRequestException e) {
+            log.error("TG {} failed (chat={}): apiResponse={} msg={}",
+                    op, chatId, e.getApiResponse(), e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected error on TG {} for chat {}: ", op, chatId, e);
+        }
+    }
+
+
+    private void reportUserError(long chatId, String msg) {
+        SendMessage sm = SendMessage.builder()
+                .chatId(String.valueOf(chatId))
+                .text("⚠️ " + msg)
+                .parseMode("HTML")
+                .disableWebPagePreview(true)
+                .build();
+        safeExecute(sm, chatId, "sendError");
     }
 }
