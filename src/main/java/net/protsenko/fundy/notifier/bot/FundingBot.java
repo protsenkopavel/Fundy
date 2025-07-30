@@ -539,12 +539,9 @@ public class FundingBot extends TelegramLongPollingBot {
     private String buildPreviewText(long chatId) {
         FundingAlertSettings s = repo.getOrDefault(chatId);
 
-        Map<ExchangeType, List<FundingRateData>> snap =
-                cache.forceRefresh(Duration.ofSeconds(15));
-        if (snap.isEmpty() || cache.isStale())
-            snap = cache.forceRefresh(Duration.ofSeconds(15));
-        if (snap.isEmpty())
-            return "Данные обновляются, подождите пару минут";
+        Map<ExchangeType, List<FundingRateData>> snap = cache.forceRefresh(Duration.ofSeconds(15));
+        if (snap.isEmpty() || cache.isStale()) snap = cache.forceRefresh(Duration.ofSeconds(15));
+        if (snap.isEmpty()) return "Данные обновляются, подождите пару минут";
 
         var list = snap.entrySet().stream()
                 .filter(e -> s.exchanges().isEmpty() || s.exchanges().contains(e.getKey()))
@@ -560,18 +557,16 @@ public class FundingBot extends TelegramLongPollingBot {
                 .limit(10)
                 .toList();
 
-        String header = "Текущие фандинги > %s%%\n\n".formatted(
-                s.minAbsRate().multiply(BigDecimal.valueOf(100))
-                        .setScale(2, RoundingMode.HALF_UP)
-                        .stripTrailingZeros().toPlainString());
+        String header = String.format("Текущие фандинги > %s%n%n",
+                FundingMessageFormatter.pct(s.minAbsRate()));
 
         if (list.isEmpty()) return header + "Нет подходящих ставок.";
 
         StringBuilder sb = new StringBuilder(header);
-        for (var e : list) {
-            sb.append(FundingMessageFormatter.format(e.getValue(), e.getKey(), s.zone()))
-                    .append('\n');
-        }
+        list.forEach(e ->
+                sb.append(FundingMessageFormatter.format(e.getValue(), e.getKey(), s.zone()))
+                        .append('\n')
+        );
         return sb.toString().trim();
     }
 

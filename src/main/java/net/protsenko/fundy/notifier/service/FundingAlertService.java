@@ -60,7 +60,7 @@ public class FundingAlertService {
 
                 /* ---------- первый раз в бакете ---------- */
                 if (sentStore.markIfNotSent(key)) {
-                    sendNew(s, fr, ex, newRate);
+                    sendNew(s, fr, ex);
                     lastStore.put(key, newRate);
                     continue;
                 }
@@ -78,30 +78,31 @@ public class FundingAlertService {
     }
 
     /* util */
-    private void sendNew(FundingAlertSettings s, FundingRateData fr, ExchangeType ex, BigDecimal rate) {
-        String head = "⚡ <b>Новый фандинг > %s</b>:\n\n"
-                .formatted(FundingMessageFormatter.pct(s.minAbsRate()));
-        tg.sendMessage(s.chatId(), head + FundingMessageFormatter.format(fr, ex, s.zone()));
+    private void sendNew(FundingAlertSettings s,
+                         FundingRateData fr,
+                         ExchangeType ex) {
+        String threshold = FundingMessageFormatter.pct(s.minAbsRate());
+        String head = String.format("⚡ <b>Новый фандинг > %s</b>:%n%n", threshold);
+        tg.sendMessage(s.chatId(),
+                head + FundingMessageFormatter.format(fr, ex, s.zone()));
     }
 
-    private void sendUpdate(
-            FundingAlertSettings s,
-            FundingRateData fr,
-            ExchangeType ex,
-            BigDecimal prev,
-            BigDecimal now
-    ) {
-        BigDecimal prevRounded = prev.setScale(2, RoundingMode.HALF_UP);
-        BigDecimal nowRounded = now.setScale(2, RoundingMode.HALF_UP);
+    private void sendUpdate(FundingAlertSettings s,
+                            FundingRateData fr,
+                            ExchangeType ex,
+                            BigDecimal prev,
+                            BigDecimal now) {
+        BigDecimal prevPct = prev.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal nowPct = now.setScale(2, RoundingMode.HALF_UP);
+        if (nowPct.equals(prevPct)) return;
 
-        if (nowRounded.equals(prevRounded)) return;
-        String arrow = nowRounded.compareTo(prevRounded) > 0 ? "↑" : "↓";
-
+        String arrow = nowPct.compareTo(prevPct) > 0 ? "↑" : "↓";
         String body = FundingMessageFormatter.format(fr, ex, s.zone())
-                .replace(FundingMessageFormatter.pct(nowRounded),
-                        FundingMessageFormatter.pct(nowRounded) + arrow);
+                .replace(FundingMessageFormatter.pct(prev),
+                        FundingMessageFormatter.pct(now) + arrow);
 
-        tg.sendMessage(s.chatId(), "🔄 <b>Обновление:</b>\n\n" + body);
+        tg.sendMessage(s.chatId(),
+                "🔄 <b>Обновление:</b>\n\n" + body);
     }
 
     private boolean timeTooEarlyOrLate(FundingRateData fr, FundingAlertSettings s) {

@@ -18,7 +18,6 @@ public final class FundingMessageFormatter {
     public static String format(FundingRateData fr,
                                 ExchangeType ex,
                                 ZoneId zone) {
-
         String emoji = fr.fundingRate().signum() >= 0 ? "🟥" : "🟢";
         String time = Instant.ofEpochMilli(fr.nextFundingTimeMs())
                 .atZone(zone)
@@ -26,34 +25,35 @@ public final class FundingMessageFormatter {
         String left = prettyDuration(Duration.between(
                 Instant.now(),
                 Instant.ofEpochMilli(fr.nextFundingTimeMs())));
-
         String url = ExchangeLinkResolver.link(ex, fr.instrument());
 
-        return "%s <b>%s</b>  %s  %s (%s)  <a href=\"%s\">%s</a>"
-                .formatted(emoji,
-                        fr.instrument().baseAsset(),
-                        pct(fr.fundingRate()),
-                        time,
-                        left,
-                        url,
-                        ex.name());
+        return String.format("%s <b>%s</b>  %s  %s (%s)  <a href=\"%s\">%s</a>",
+                emoji,
+                fr.instrument().baseAsset(),
+                pct(fr.fundingRate()),
+                time,
+                left,
+                url,
+                ex.name()
+        );
     }
-
-    /* ---------- helpers ---------- */
 
     public static String prettyDuration(Duration d) {
         long h = d.toHours();
         long m = d.toMinutesPart();
         return switch ((h > 0 ? 1 : 0) | (m > 0 ? 2 : 0)) {
-            case 1 -> "%d ч".formatted(h);
-            case 2 -> "%d мин".formatted(m);
-            case 3 -> "%d ч %d мин".formatted(h, m);
+            case 1 -> String.format("%d ч", h);
+            case 2 -> String.format("%d мин", m);
+            case 3 -> String.format("%d ч %d мин", h, m);
             default -> "0 мин";
         };
     }
 
     public static String pct(BigDecimal p) {
-        return p.setScale(2, RoundingMode.HALF_UP)
-                .stripTrailingZeros().toPlainString() + "%";
+        BigDecimal percent = p.multiply(BigDecimal.valueOf(100));
+        return percent
+                .setScale(2, RoundingMode.HALF_UP)
+                .stripTrailingZeros()
+                .toPlainString() + "%";
     }
 }
