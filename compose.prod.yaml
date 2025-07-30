@@ -2,39 +2,41 @@ services:
   fundy-db:
     image: postgres:16.9
     ports:
-      - "${DB_PORT_EXTERNAL:-5432}:${DB_PORT_INTERNAL:-5432}"
+      - "${DB_PORT_EXTERNAL}:${DB_PORT_INTERNAL}"
     restart: unless-stopped
-    env_file: .env
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-fundy_db}
-      PGPORT: ${DB_PORT_INTERNAL:-5432}
+    env_file:
+      - .env
+    volumes:
+      - fundy-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -p ${DB_PORT_INTERNAL:-5432}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-fundy} || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
     networks: [ app-net ]
 
   fundy:
-    image: ghcr.io/protsenkopavel/fundy:latest
+    build:
+      context: .
     ports:
-      - "${SERVER_PORT_EXTERNAL:-8080}:${SERVER_PORT_INTERNAL:-8080}"
-    depends_on: [ fundy-db ]
-    env_file: .env
-    environment:
-      - SERVER_HOST=${SERVER_HOST:-fundy}
-      - SERVER_PORT=${SERVER_PORT_INTERNAL:-8080}
-      - SPRING_PROFILES_ACTIVE=${SERVER_SPRING_PROFILE:-prod}
-      - TELEGRAM_USERNAME=${TELEGRAM_USERNAME:-fundy_test_bot}
-      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_HOST=${DB_HOST:-fundy-db}
-      - DB_PORT_INTERNAL=${DB_PORT_INTERNAL:-5432}
-      - DB_NAME=${DB_NAME:-fundy_db}
-      - ADMIN_CHAT_ID=${ADMIN_CHAT_ID:-615149198}
+      - "${SERVER_PORT_EXTERNAL}:${SERVER_PORT_INTERNAL}"
+    restart: unless-stopped
+    depends_on:
+      fundy-db:
+        condition: service_healthy
+    env_file:
+      - .env
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://${SERVER_HOST:-fundy}:${SERVER_PORT_INTERNAL:-8080}/actuator/health" ]
+      test: [ "CMD-SHELL", "curl -f http://${SERVER_HOST}:${SERVER_PORT_INTERNAL}/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
     networks: [ app-net ]
+
+volumes:
+  fundy-db-data:
 
 networks:
   app-net:

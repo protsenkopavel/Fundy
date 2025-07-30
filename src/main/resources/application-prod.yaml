@@ -3,9 +3,9 @@ spring:
     name: Fundy
   datasource:
     driver-class-name: org.postgresql.Driver
-    password: ${DB_PASSWORD:-postgres}
-    username: ${DB_USER:-postgres}
-    url: jdbc:postgresql://${DB_HOST:-fundy-db}:${DB_PORT_INTERNAL:-5432}/${DB_NAME:-fundy_db}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT_INTERNAL}/${DB_NAME}
+    password: ${POSTGRES_PASSWORD}
+    username: ${POSTGRES_USER}
   jpa:
     open-in-view: false
     hibernate:
@@ -21,17 +21,18 @@ spring:
     type: caffeine
 
 telegram.bot:
-  username: ${TELEGRAM_USERNAME:fundy_test_bot}
-  token: ${TELEGRAM_TOKEN:}
+  username: ${TELEGRAM_USERNAME}
+  token: ${TELEGRAM_TOKEN}
 
 server:
-  port: ${SERVER_PORT_INTERNAL:-8080}
+  port: ${SERVER_PORT_INTERNAL}
 
 logging:
   level:
     root: info
-    org.hibernate.engine.jdbc.env.internal.JdbcEnvironmentInitiator: WARN
-    com.github.benmanes.caffeine.cache.CaffeineCacheMetrics: OFF
+    org.hibernate: warn
+    org.hibernate.SQL: warn
+    org.springframework.boot.actuate: warn
 
 management:
   endpoints:
@@ -46,58 +47,58 @@ management:
 fundy:
   exchanges:
     bybit:
-      api-key: ${BYBIT_API_KEY:}
-      secret-key: ${BYBIT_SECRET_KEY:}
+      api-key: ${BYBIT_API_KEY}
+      secret-key: ${BYBIT_SECRET_KEY}
       base-url: https://api.bybit.com
       timeout: 10
       enabled: true
     mexc:
-      api-key: ${MEXC_API_KEY:}
-      secret-key: ${MEXC_SECRET_KEY:}
+      api-key: ${MEXC_API_KEY}
+      secret-key: ${MEXC_SECRET_KEY}
       base-url: https://contract.mexc.com
       timeout: 10
       enabled: true
     kucoin:
-      api-key: ${KUCOIN_API_KEY:}
-      secret-key: ${KUCOIN_SECRET_KEY:}
+      api-key: ${KUCOIN_API_KEY}
+      secret-key: ${KUCOIN_SECRET_KEY}
       base-url: https://api-futures.kucoin.com
       timeout: 10
       enabled: true
     bitget:
-      api-key: ${BITGET_API_KEY:}
-      secret-key: ${BITGET_SECRET_KEY:}
+      api-key: ${BITGET_API_KEY}
+      secret-key: ${BITGET_SECRET_KEY}
       base-url: https://api.bitget.com
       timeout: 10
       enabled: true
       product-type: umcbl
     bingx:
-      api-key: ${BINGX_API_KEY:}
-      secret-key: ${BINGX_SECRET_KEY:}
+      api-key: ${BINGX_API_KEY}
+      secret-key: ${BINGX_SECRET_KEY}
       base-url: https://open-api.bingx.com
       timeout: 10
       enabled: true
     okx:
-      api-key: ${OKX_API_KEY:}
-      secret-key: ${OKX_SECRET_KEY:}
+      api-key: ${OKX_API_KEY}
+      secret-key: ${OKX_SECRET_KEY}
       base-url: https://www.okx.com
       timeout: 10
       enabled: true
     gateio:
-      api-key: ${GATEIO_API_KEY:}
-      secret-key: ${GATEIO_SECRET_KEY:}
+      api-key: ${GATEIO_API_KEY}
+      secret-key: ${GATEIO_SECRET_KEY}
       base-url: https://api.gateio.ws
       settle: usdt
       timeout: 10
       enabled: true
     coinex:
-      api-key: ${COINEX_API_KEY:}
-      secret-key: ${COINEX_SECRET_KEY:}
+      api-key: ${COINEX_API_KEY}
+      secret-key: ${COINEX_SECRET_KEY}
       base-url: https://api.coinex.com
       timeout: 10
       enabled: true
     htx:
-      api-key: ${HTX_API_KEY:}
-      secret-key: ${HTX_SECRET_KEY:}
+      api-key: ${HTX_API_KEY}
+      secret-key: ${HTX_SECRET_KEY}
       base-url: https://api.hbdm.com
       timeout: 10
       enabled: true
