@@ -39,7 +39,7 @@ jobs:
 
             [ -d "$WORKDIR/.git" ] || git clone https://github.com/protsenkopavel/Fundy "$WORKDIR"
             cd "$WORKDIR"
-            git pull --ff-only
+            git pull --rebase
 
             [ -f .env ] || { echo ".env не найден – abort"; exit 1; }
 
