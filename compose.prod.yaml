@@ -15,8 +15,7 @@ services:
     networks: [ app-net ]
 
   fundy:
-    build:
-      context: .
+    image: ghcr.io/protsenkopavel/fundy:latest
     ports:
       - "${SERVER_PORT_EXTERNAL:-8080}:${SERVER_PORT_INTERNAL:-8080}"
     depends_on: [ fundy-db ]
@@ -24,7 +23,7 @@ services:
     environment:
       - SERVER_HOST=${SERVER_HOST:-fundy}
       - SERVER_PORT=${SERVER_PORT_INTERNAL:-8080}
-      - SPRING_PROFILES_ACTIVE=${SERVER_SPRING_PROFILE:-local}
+      - SPRING_PROFILES_ACTIVE=${SERVER_SPRING_PROFILE:-prod}
       - TELEGRAM_USERNAME=${TELEGRAM_USERNAME:-fundy_test_bot}
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - DB_PASSWORD=${DB_PASSWORD:-postgres}

@@ -1,3 +1,5 @@
 databaseChangeLog:
   - include:
       file: db/changelog/2025_07_29_init_config_table.xml
+  - include:
+      file: db/seed/2025_07_29_insert-admin.xml

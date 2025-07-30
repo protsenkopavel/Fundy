@@ -145,8 +145,7 @@ public class FundingBot extends TelegramLongPollingBot {
         if (chatId != 0 && !accessGuard.allowed(chatId)
                 && !(registerCmd || rawUuidToken || startReg)) {
             send(chatId, "⛔️ Доступ запрещён.\n" +
-                    "Пришлите регистрационный токен одной строкой\n" +
-                    "или команду /register <токен>.", null);
+                    "Пришлите регистрационный токен одной строкой\n", null);
             return;
         }
 
