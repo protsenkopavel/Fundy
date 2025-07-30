@@ -197,7 +197,6 @@ public class FundingBot extends TelegramLongPollingBot {
         long chatId = upd.getMessage().getChatId();
         String text = upd.getMessage().getText().trim();
 
-        // если пользователь не зарегистрирован, но прислал UUID — регистрируем
         if (!accessGuard.allowed(chatId) && UUID_RE.matcher(text).matches()) {
             handleRegister(chatId, text);
             return;
@@ -209,10 +208,8 @@ public class FundingBot extends TelegramLongPollingBot {
         String cmd = parts[0].toLowerCase(Locale.ROOT);
         String args = parts.length > 1 ? parts[1].trim() : "";
 
-        // любая slash‑команда сбрасывает state‑машину
         if (text.startsWith("/")) stateStore.set(chatId, BotState.NONE);
 
-        // если ждём «ручной ввод» (ставка / интервал / TZ)
         BotState st = stateStore.get(chatId);
         if (st != BotState.NONE && !text.startsWith("/")) {
             processWaitingState(chatId, text, st);
@@ -265,15 +262,13 @@ public class FundingBot extends TelegramLongPollingBot {
                     Duration d = parseDuration(text);
                     repo.save(old.withBucket(d));
                     send(chatId, "Частота обновлений: " + FundingMessageFormatter.prettyDuration(d), null);
-                    stateStore.set(chatId, BotState.NONE);
-                    sendMenuNew(chatId);
                 }
             }
-            stateStore.set(chatId, BotState.NONE);
-            sendMenuNew(chatId);
         } catch (Exception e) {
-            reportUserError(chatId, "Не понял ввод. Попробуйте еще раз");
+            reportUserError(chatId, "Не понял ввод. Попробуй ещё раз.");
         }
+        stateStore.set(chatId, BotState.NONE);
+        sendMenuNew(chatId);
     }
 
     /* ---------- /start ---------- */
@@ -725,8 +720,15 @@ public class FundingBot extends TelegramLongPollingBot {
         try {
             execute(method);
         } catch (TelegramApiRequestException e) {
-            log.error("TG {} failed (chat={}): apiResponse={} msg={}",
-                    op, chatId, e.getApiResponse(), e.getMessage());
+            String resp = e.getApiResponse();
+            if ("edit".equals(op)
+                    && resp != null
+                    && resp.contains("message is not modified")) {
+                log.debug("Ignored 'message is not modified' for chat={}", chatId);
+            } else {
+                log.error("TG {} failed (chat={}): apiResponse={} msg={}",
+                        op, chatId, resp, e.getMessage());
+            }
         } catch (Exception e) {
             log.error("Unexpected error on TG {} for chat {}: ", op, chatId, e);
         }
