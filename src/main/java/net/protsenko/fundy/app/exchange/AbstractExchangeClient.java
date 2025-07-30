@@ -1,5 +1,6 @@
 package net.protsenko.fundy.app.exchange;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -66,41 +68,37 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
     public abstract TickerData getTicker(TradingInstrument instrument);
 
     protected <R> R sendRequest(HttpRequest request, Class<R> responseType) {
-        HttpResponse<String> resp = null;
-        try {
-            resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            logResponse(request, resp);
-            return parseBody(resp, responseType);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            log.error("HTTP {} {} interrupted", request.method(), request.uri(), ie);
-            throw new ExchangeException("API request interrupted", ie);
-        } catch (IOException ioe) {
-            log.error("HTTP {} {} failed (IO).", request.method(), request.uri(), ioe);
-            throw new ExchangeException("API request failed", ioe);
-        }
+        HttpResponse<String> resp = send(request);
+        return parseBody(resp, responseType);
     }
 
     protected <R> R sendRequest(HttpRequest request, TypeReference<R> typeRef) {
-        HttpResponse<String> resp = null;
-        try {
-            resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            logResponse(request, resp);
-            return parseBody(resp, typeRef);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            log.error("HTTP {} {} interrupted", request.method(), request.uri(), ie);
-            throw new ExchangeException("API request interrupted", ie);
-        } catch (IOException ioe) {
-            log.error("HTTP {} {} failed (IO).", request.method(), request.uri(), ioe);
-            throw new ExchangeException("API request failed", ioe);
-        }
+        HttpResponse<String> resp = send(request);
+        return parseBody(resp, typeRef);
     }
 
-    private void logResponse(HttpRequest req, HttpResponse<String> resp) {
-        if (resp.statusCode() >= 400) {
-            log.error("HTTP {} {} -> {} {}", req.method(), req.uri(),
-                    resp.statusCode(), resp.body());
+    private HttpResponse<String> send(HttpRequest request) {
+        try {
+            HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 400) {
+                String body = resp.body() == null ? "" : resp.body();
+                log.error("HTTP {} {} -> {} {}",
+                        request.method(), request.uri(), resp.statusCode(), body);
+            }
+            return resp;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            log.warn("HTTP {} {} interrupted: {}",
+                    request.method(), request.uri(), ie.getMessage());
+            throw new ExchangeException("API request interrupted", ie);
+        } catch (HttpTimeoutException te) {
+            log.warn("HTTP {} {} timeout after {}s",
+                    request.method(), request.uri(), config.getTimeout());
+            throw new ExchangeException("API request timed out", te);
+        } catch (IOException ioe) {
+            log.warn("HTTP {} {} failed (IO): {}",
+                    request.method(), request.uri(), ioe.getMessage());
+            throw new ExchangeException("API request failed", ioe);
         }
     }
 
@@ -108,7 +106,9 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
         validateStatus(response);
         try {
             return mapper.readValue(response.body(), type);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
+            String snippet = response.body() == null ? "" : response.body();
+            log.error("JSON parse failed ({}): {}", type.getSimpleName(), snippet);
             throw new ExchangeException("JSON parse failed", e);
         }
     }
@@ -117,8 +117,9 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
         validateStatus(response);
         try {
             return mapper.readValue(response.body(), typeRef);
-        } catch (Exception e) {
-            log.error("JSON parse failed. Body: {}", response.body(), e);
+        } catch (JsonProcessingException e) {
+            String snippet = response.body() == null ? "" : response.body();
+            log.error("JSON parse failed (TypeReference): {}", snippet);
             throw new ExchangeException("JSON parse failed", e);
         }
     }
