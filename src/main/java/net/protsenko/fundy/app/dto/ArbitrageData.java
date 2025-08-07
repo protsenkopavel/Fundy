@@ -6,14 +6,15 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 public record ArbitrageData(
-        String baseAsset,
+        String token,
         Map<ExchangeType, BigDecimal> prices,
         Map<ExchangeType, BigDecimal> fundingRates,
+        Map<ExchangeType, Long> nextFundingTs,
         BigDecimal priceSpread,
         BigDecimal fundingSpread,
-        ArbitrageDecision decision
+        Decision decision
 ) {
-    public record ArbitrageDecision(
+    public record Decision(
             ExchangeType longEx, ExchangeType shortEx
     ) {
     }

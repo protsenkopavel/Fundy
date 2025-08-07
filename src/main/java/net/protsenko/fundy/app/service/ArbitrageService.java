@@ -2,10 +2,7 @@ package net.protsenko.fundy.app.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.ArbitrageData;
-import net.protsenko.fundy.app.dto.FundingRateData;
-import net.protsenko.fundy.app.dto.InstrumentType;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.*;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -14,12 +11,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -27,66 +23,141 @@ import java.util.stream.Collectors;
 public class ArbitrageService {
 
     private static final MathContext MC = new MathContext(8, RoundingMode.HALF_UP);
+
     private final ExchangeClientFactory factory;
 
-    public List<ArbitrageData> findAll() {
-        Map<String, Agg> map = new ConcurrentHashMap<>();
+    public List<ArbitrageData> findArbitrageOpportunities(ArbitrageFilter f) {
 
-        Arrays.stream(ExchangeType.values()).parallel().forEach(ex -> {
-            ExchangeClient client = factory.getClient(ex);
+        ZoneId zone = f.zone() == null ? ZoneId.systemDefault() : ZoneId.of(f.zone());
+        BigDecimal minFr = f.minFr() == null ? BigDecimal.ZERO : f.minFr();
+        BigDecimal minPr = f.minPr() == null ? BigDecimal.ZERO : f.minPr();
+        Set<ExchangeType> exchanges = (f.exchanges() == null || f.exchanges().isEmpty())
+                ? EnumSet.allOf(ExchangeType.class)
+                : EnumSet.copyOf(f.exchanges());
 
-            Map<String, BigDecimal> frMap = client.getAllFundingRates().stream()
-                    .collect(Collectors.toMap(
-                            fr -> fr.instrument().baseAsset(),
-                            FundingRateData::fundingRate,
-                            (a, b) -> b));
+        Map<String, List<BucketEntry>> bySymbol = exchanges.parallelStream()
+                .flatMap(ex -> loadExchangeData(ex, zone))
+                .collect(Collectors.groupingByConcurrent(BucketEntry::symbol));
 
-            List<TradingInstrument> instruments = client.getAvailableInstruments().stream()
-                    .filter(i -> i.type() == InstrumentType.PERPETUAL)
-                    .toList();
-
-            if (instruments.isEmpty()) return;
-
-            client.getTickers(instruments).forEach(t -> {
-                String coin = t.instrument().baseAsset();
-                Agg agg = map.computeIfAbsent(coin, c -> new Agg());
-                agg.prices.put(ex, t.lastPrice());
-                agg.fundings.put(ex, frMap.getOrDefault(coin, BigDecimal.ZERO));
-            });
-        });
-
-        return map.entrySet().stream()
-                .filter(e -> e.getValue().prices.size() >= 2)
-                .map(e -> build(e.getKey(), e.getValue()))
+        return bySymbol.entrySet().parallelStream()
+                .map(this::buildView)
+                .filter(Objects::nonNull)
+                .filter(a -> a.fundingSpread().compareTo(minFr) >= 0
+                        && a.priceSpread().compareTo(minPr) >= 0)
                 .sorted(Comparator.comparing(ArbitrageData::fundingSpread).reversed())
                 .toList();
     }
 
-    private ArbitrageData build(String coin, Agg agg) {
-        Map.Entry<ExchangeType, BigDecimal> maxP = agg.prices.entrySet().stream()
-                .max(Map.Entry.comparingByValue()).orElseThrow();
-        Map.Entry<ExchangeType, BigDecimal> minP = agg.prices.entrySet().stream()
-                .min(Map.Entry.comparingByValue()).orElseThrow();
-        BigDecimal priceSpread = maxP.getValue().subtract(minP.getValue(), MC).divide(minP.getValue(), MC);
+    private Stream<BucketEntry> loadExchangeData(ExchangeType ex, ZoneId zone) {
+        try {
+            ExchangeClient client = factory.getClient(ex);
 
-        Map.Entry<ExchangeType, BigDecimal> maxFr = agg.fundings.entrySet().stream()
-                .max(Map.Entry.comparingByValue()).orElseThrow();
-        Map.Entry<ExchangeType, BigDecimal> minFr = agg.fundings.entrySet().stream()
-                .min(Map.Entry.comparingByValue()).orElseThrow();
-        BigDecimal fundingSpread = maxFr.getValue().subtract(minFr.getValue(), MC);
+            Map<String, FundingRateData> fundBySymbol = client.getAllFundingRates().stream()
+                    .collect(Collectors.toMap(
+                            fr -> key(fr.instrument()),
+                            fr -> fr,
+                            (a, b) -> a
+                    ));
+
+            List<TradingInstrument> instruments = client.getAvailableInstruments().stream()
+                    .filter(i -> i.type() == InstrumentType.PERPETUAL)
+                    .toList();
+            if (instruments.isEmpty()) return Stream.empty();
+
+            List<TickerData> tickers = client.getTickers(instruments);
+
+            return tickers.stream()
+                    .map(tk -> {
+                        String symbol = key(tk.instrument());
+                        FundingRateData fr = fundBySymbol.get(symbol);
+
+                        BigDecimal frValue = fr == null ? null : fr.fundingRate();
+                        long nextFunding = fr == null ? 0L : Instant
+                                .ofEpochMilli(fr.nextFundingTimeMs())
+                                .atZone(zone).toInstant().toEpochMilli();
+
+                        return new BucketEntry(symbol, ex, tk.lastPrice(), frValue, nextFunding);
+                    })
+                    .filter(be -> be.price().compareTo(BigDecimal.ZERO) > 0);
+        } catch (Exception e) {
+            log.warn("Не удалось получить данные с биржи {}", ex, e);
+            return Stream.empty();
+        }
+    }
+
+    private ArbitrageData buildView(Map.Entry<String, List<BucketEntry>> e) {
+        String symbol = e.getKey();
+        List<BucketEntry> list = e.getValue();
+
+        if (list.stream().map(BucketEntry::price).distinct().count() < 2) return null;
+        if (list.stream().map(BucketEntry::funding).filter(Objects::nonNull).distinct().count() < 2) return null;
+
+        BucketEntry maxPrice = list.stream().max(Comparator.comparing(BucketEntry::price)).orElseThrow();
+        BucketEntry minPrice = list.stream().min(Comparator.comparing(BucketEntry::price)).orElseThrow();
+        if (minPrice.price().compareTo(BigDecimal.ZERO) == 0) return null;
+
+        BigDecimal priceSpread = maxPrice.price()
+                .subtract(minPrice.price(), MC)
+                .divide(minPrice.price(), MC);
+
+        BucketEntry maxFr = list.stream().filter(b -> b.funding() != null)
+                .max(Comparator.comparing(BucketEntry::funding)).orElseThrow();
+        BucketEntry minFr = list.stream().filter(b -> b.funding() != null)
+                .min(Comparator.comparing(BucketEntry::funding)).orElseThrow();
+        BigDecimal fundingSpread = maxFr.funding().subtract(minFr.funding(), MC);
+
+        ArbitrageData.Decision decision = pickBestPair(list);
+        if (decision == null) return null;
+
+        Map<ExchangeType, BigDecimal> priceMap = list.stream()
+                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::price, (a, b) -> a));
+        Map<ExchangeType, BigDecimal> frMap = list.stream()
+                .filter(it -> it.funding() != null)
+                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::funding, BigDecimal::max));
+        Map<ExchangeType, Long> nextFundingMap = list.stream()
+                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::nextFunding, Math::min));
 
         return new ArbitrageData(
-                coin,
-                Map.copyOf(agg.prices),
-                Map.copyOf(agg.fundings),
+                symbol,
+                Map.copyOf(priceMap),
+                Map.copyOf(frMap),
+                Map.copyOf(nextFundingMap),
                 priceSpread,
                 fundingSpread,
-                new ArbitrageData.ArbitrageDecision(minFr.getKey(), maxFr.getKey())
+                decision
         );
     }
 
-    private static class Agg {
-        final Map<ExchangeType, BigDecimal> prices = new ConcurrentHashMap<>();
-        final Map<ExchangeType, BigDecimal> fundings = new ConcurrentHashMap<>();
+    private ArbitrageData.Decision pickBestPair(List<BucketEntry> list) {
+        BigDecimal bestScore = null;
+        ExchangeType bestLong = null, bestShort = null;
+
+        for (int i = 0; i < list.size(); i++) {
+            for (int j = 0; j < list.size(); j++) {
+                if (i == j) continue;
+
+                BucketEntry L = list.get(i);
+                BucketEntry S = list.get(j);
+
+                if (L.funding() == null || S.funding() == null) continue;
+                if (L.price().compareTo(S.price()) >= 0) continue;
+
+                BigDecimal fundingProfit = S.funding().subtract(L.funding(), MC);
+                BigDecimal priceProfit = S.price().subtract(L.price(), MC)
+                        .divide(L.price(), MC);
+                BigDecimal score = fundingProfit.add(priceProfit, MC);
+
+                if (bestScore == null || score.compareTo(bestScore) > 0) {
+                    bestScore = score;
+                    bestLong = L.ex();
+                    bestShort = S.ex();
+                }
+            }
+        }
+        return bestLong == null ? null : new ArbitrageData.Decision(bestLong, bestShort);
+    }
+
+    private String key(TradingInstrument i) {
+        return i.baseAsset() + i.quoteAsset();
     }
 }
