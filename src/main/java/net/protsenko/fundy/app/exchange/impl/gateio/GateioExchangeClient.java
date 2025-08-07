@@ -123,14 +123,47 @@ public class GateioExchangeClient extends AbstractExchangeClient<GateioConfig> {
 
         return new TickerData(
                 instrument,
-                d(t.last()),
-                d(t.highestBid()),
-                d(t.lowestAsk()),
-                d(t.high24h()),
-                d(t.low24h()),
-                d(t.volume24h()),
+                bd(t.last()),
+                bd(t.highestBid()),
+                bd(t.lowestAsk()),
+                bd(t.high24h()),
+                bd(t.low24h()),
+                bd(t.volume24h()),
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        String url = "https://api.gateio.ws/api/v4/futures/" + config.getSettle() + "/tickers";
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+
+        List<GateioTickerItem> list = sendRequest(req, new TypeReference<>() {
+        });
+        if (list == null) throw new ExchangeException("GateIO tickers: null response");
+
+        Map<String, GateioTickerItem> bySymbol = list.stream()
+                .collect(Collectors.toMap(GateioTickerItem::contract, Function.identity()));
+
+        long now = System.currentTimeMillis();
+
+        return instruments.stream()
+                .map(inst -> {
+                    GateioTickerItem t = bySymbol.get(ensureSymbol(inst));
+                    if (t == null) return null;
+                    return new TickerData(
+                            inst,
+                            bd(t.last()),
+                            bd(t.highestBid()),
+                            bd(t.lowestAsk()),
+                            bd(t.high24h()),
+                            bd(t.low24h()),
+                            bd(t.volume24h()),
+                            now
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override

@@ -125,14 +125,39 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
 
         return new TickerData(
                 instrument,
-                d(t.last()),
-                d(t.buy()),
-                d(t.sell()),
-                d(t.high()),
-                d(t.low()),
-                d(t.vol()),
+                bd(t.last()),
+                bd(t.buy()),
+                bd(t.sell()),
+                bd(t.high()),
+                bd(t.low()),
+                bd(t.vol()),
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        Map<String, CoinexTickerItem> all = tickerAllMap();
+        Map<String, TradingInstrument> dict = symbolIndex();
+        long now = System.currentTimeMillis();
+
+        return instruments.stream()
+                .map(inst -> {
+                    CoinexTickerItem t = all.get(ensureSymbol(inst));
+                    if (t == null) return null;
+                    return new TickerData(
+                            inst,
+                            bd(t.last()),
+                            bd(t.buy()),
+                            bd(t.sell()),
+                            bd(t.high()),
+                            bd(t.low()),
+                            bd(t.vol()),
+                            now
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override

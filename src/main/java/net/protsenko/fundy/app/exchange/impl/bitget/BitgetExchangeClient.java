@@ -103,14 +103,59 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
         BitgetTickerItem t = resp.data();
         return new TickerData(
                 instrument,
-                d(t.last()),
-                d(t.bestBid()),
-                d(t.bestAsk()),
-                d(t.high24h()),
-                d(t.low24h()),
-                d(t.baseVolume()),
+                bd(t.last()),
+                bd(t.bestBid()),
+                bd(t.bestAsk()),
+                bd(t.high24h()),
+                bd(t.low24h()),
+                bd(t.baseVolume()),
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        String url = config.getBaseUrl()
+                + "/api/mix/v1/market/tickers?productType=" + config.getProductType();
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+
+        BitgetResponse<List<BitgetTickerItem>> resp = sendRequest(
+                req, new TypeReference<>() {
+                }
+        );
+
+        if (resp == null || !"00000".equals(resp.code()) || resp.data() == null) {
+            throw new ExchangeException("Bitget tickers error: "
+                    + (resp != null ? resp.msg() : "null response"));
+        }
+
+        Map<String, BitgetTickerItem> bySymbol = resp.data().stream()
+                .collect(Collectors.toMap(
+                        BitgetTickerItem::symbol,
+                        Function.identity(),
+                        (a, b) -> a
+                ));
+
+        Map<String, TradingInstrument> dict = symbolIndex();
+        long now = System.currentTimeMillis();
+
+        return instruments.stream()
+                .map(inst -> {
+                    BitgetTickerItem t = bySymbol.get(ensureSymbol(inst));
+                    if (t == null) return null;
+                    return new TickerData(
+                            inst,
+                            bd(t.last()),
+                            bd(t.bestBid()),
+                            bd(t.bestAsk()),
+                            bd(t.high24h()),
+                            bd(t.low24h()),
+                            bd(t.baseVolume()),
+                            now
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override

@@ -6,7 +6,6 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 
 import java.time.Duration;
 
@@ -14,9 +13,11 @@ import java.time.Duration;
 @EnableCaching
 public class CacheConfig {
     @Bean
-    @Primary
     public CacheManager caffeineCacheManager() {
-        CaffeineCacheManager cm = new CaffeineCacheManager("exchange-instruments");
+        CaffeineCacheManager cm = new CaffeineCacheManager(
+                "exchange-instruments",
+                "exchange-tickers"
+        );
         cm.setCaffeine(Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(10))
                 .maximumSize(10_000)

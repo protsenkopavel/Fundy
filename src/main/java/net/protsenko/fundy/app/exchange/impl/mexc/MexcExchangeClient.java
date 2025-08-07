@@ -74,14 +74,49 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
         MexcTickerItem i = resp.data();
         return new TickerData(
                 instrument,
-                d(i.lastPrice()),
-                d(i.bid1Price()),
-                d(i.ask1Price()),
-                d(i.high24Price()),
-                d(i.low24Price()),
-                d(i.volume24()),
+                bd(i.lastPrice()),
+                bd(i.bid1Price()),
+                bd(i.ask1Price()),
+                bd(i.high24Price()),
+                bd(i.low24Price()),
+                bd(i.volume24()),
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        String url = config.getBaseUrl() + "/api/v1/contract/ticker";
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+
+        MexcTickerListWrapper wr = sendRequest(req, MexcTickerListWrapper.class);
+        if (wr == null || wr.code() != 0 || wr.data() == null) {
+            throw new ExchangeException("MEXC tickers error: "
+                    + (wr != null ? wr.msg() : "null"));
+        }
+
+        Map<String, MexcTickerItem> bySymbol = wr.data().stream()
+                .collect(Collectors.toMap(MexcTickerItem::symbol, Function.identity()));
+
+        long now = System.currentTimeMillis();
+
+        return instruments.stream()
+                .map(inst -> {
+                    MexcTickerItem t = bySymbol.get(symbol(inst));
+                    if (t == null) return null;
+                    return new TickerData(
+                            inst,
+                            bd(t.lastPrice()),
+                            bd(t.bid1Price()),
+                            bd(t.ask1Price()),
+                            bd(t.high24Price()),
+                            bd(t.low24Price()),
+                            bd(t.volume24()),
+                            now
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override

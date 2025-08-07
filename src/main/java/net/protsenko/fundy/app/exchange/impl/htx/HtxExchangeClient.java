@@ -165,12 +165,12 @@ public class HtxExchangeClient extends AbstractExchangeClient<HtxConfig> {
             HtxDetailResp.Tick t = resp.tick();
             return new TickerData(
                     instrument,
-                    t.close(),
-                    Double.NaN,
-                    Double.NaN,
-                    t.high(),
-                    t.low(),
-                    t.vol(),
+                    bd(String.valueOf(t.close())),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    bd(String.valueOf(t.high())),
+                    bd(String.valueOf(t.low())),
+                    bd(String.valueOf(t.vol())),
                     System.currentTimeMillis()
             );
         } catch (ExchangeException ex) {
@@ -178,8 +178,57 @@ public class HtxExchangeClient extends AbstractExchangeClient<HtxConfig> {
         }
     }
 
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        String url = config.getBaseUrl() + "/linear-swap-ex/market/detail/batch_merged";
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        HtxBatchResp resp = sendRequest(req, HtxBatchResp.class);
+        if (resp == null || !"ok".equalsIgnoreCase(resp.status()) || resp.ticks() == null) {
+            throw new ExchangeException("HTX batch tickers error: "
+                    + (resp != null ? resp.status() : "null"));
+        }
+
+        Map<String, HtxBatchResp.Tick> bySymbol = resp.ticks().stream()
+                .collect(Collectors.toMap(HtxBatchResp.Tick::contractCode,
+                        Function.identity(),
+                        (a, b) -> a));
+
+        long now = System.currentTimeMillis();
+
+        return instruments.stream()
+                .map(inst -> {
+                    HtxBatchResp.Tick t = bySymbol.get(ensureSymbol(inst));
+                    if (t == null) return emptyTicker(inst);
+
+                    double bid = (t.bid() != null && t.bid().length > 0)
+                            ? t.bid()[0]
+                            : Double.NaN;
+
+                    double ask = (t.ask() != null && t.ask().length > 0)
+                            ? t.ask()[0]
+                            : Double.NaN;
+
+                    return new TickerData(
+                            inst,
+                            bd(t.close()),
+                            bd(String.valueOf(bid)),
+                            bd(String.valueOf(ask)),
+                            bd(t.high()),
+                            bd(t.low()),
+                            bd(t.vol()),
+                            now
+                    );
+                })
+                .toList();
+    }
+
     private TickerData emptyTicker(TradingInstrument inst) {
-        return new TickerData(inst, Double.NaN, Double.NaN, Double.NaN,
-                Double.NaN, Double.NaN, 0.0, System.currentTimeMillis());
+        return new TickerData(inst, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, System.currentTimeMillis());
     }
 }

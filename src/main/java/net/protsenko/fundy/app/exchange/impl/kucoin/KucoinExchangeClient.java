@@ -7,12 +7,17 @@ import net.protsenko.fundy.app.dto.TradingInstrument;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -22,6 +27,10 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
 @Component
 public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
 
+    private static final int KUCOIN_PARALLEL = 16;
+    private static final int RETRIES = 2;
+    private final ExecutorService kuPool =
+            Executors.newFixedThreadPool(KUCOIN_PARALLEL);
     private volatile Map<String, TradingInstrument> symbolIndex;
     private volatile Map<String, KucoinContractItem> rawContractIndex;
 
@@ -83,14 +92,42 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
 
         return new TickerData(
                 instrument,
-                d(td.price()),
-                d(td.bestBidPrice()),
-                d(td.bestAskPrice()),
-                d(c.highPrice()),
-                d(c.lowPrice()),
-                d(c.volumeOf24h()),
+                bd(td.price()),
+                bd(td.bestBidPrice()),
+                bd(td.bestAskPrice()),
+                bd(c.highPrice()),
+                bd(c.lowPrice()),
+                bd(c.volumeOf24h()),
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    @Cacheable(cacheNames = "exchange-tickers",
+            key = "'KUCOIN'",
+            cacheManager = "caffeineCacheManager")
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        return instruments.stream()
+                .map(inst -> CompletableFuture.supplyAsync(() -> fetchWithRetry(inst), kuPool))
+                .map(CompletableFuture::join)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private TickerData fetchWithRetry(TradingInstrument inst) {
+        for (int i = 0; i <= RETRIES; i++) {
+            try {
+                return getTicker(inst);
+            } catch (Exception ex) {
+                if (i == RETRIES || !ex.getMessage().contains("too many concurrent"))
+                    return null;
+                try {
+                    Thread.sleep(200L);
+                } catch (InterruptedException ignored) {
+                }
+            }
+        }
+        return null;
     }
 
     @Override

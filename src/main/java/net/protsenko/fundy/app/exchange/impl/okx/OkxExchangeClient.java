@@ -103,14 +103,59 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
         OkxTickerItem t = resp.data().getFirst();
         return new TickerData(
                 instrument,
-                d(t.last()),
-                d(t.bidPx()),
-                d(t.askPx()),
-                d(t.high24h()),
-                d(t.low24h()),
-                d(t.vol24h()),
+                bd(t.last()),
+                bd(t.bidPx()),
+                bd(t.askPx()),
+                bd(t.high24h()),
+                bd(t.low24h()),
+                bd(t.vol24h()),
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        String url = config.getBaseUrl() + "/api/v5/market/tickers?instType=SWAP";
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        OkxResponse<OkxTickerItem> resp = sendRequest(req, new TypeReference<>() {
+        });
+        if (resp == null || !"0".equals(resp.code()) || resp.data() == null) {
+            throw new ExchangeException("OKX all-tickers error: "
+                    + (resp != null ? resp.msg() : "null"));
+        }
+
+        Map<String, OkxTickerItem> bySymbol = resp.data().stream()
+                .collect(Collectors.toMap(
+                        OkxTickerItem::instId,
+                        Function.identity(),
+                        (a, b) -> a
+                ));
+
+        long now = System.currentTimeMillis();
+
+
+        return instruments.stream()
+                .map(inst -> {
+                    OkxTickerItem t = bySymbol.get(ensureSymbol(inst));
+                    if (t == null) return null;
+                    return new TickerData(
+                            inst,
+                            bd(t.last()),
+                            bd(t.bidPx()),
+                            bd(t.askPx()),
+                            bd(t.high24h()),
+                            bd(t.low24h()),
+                            bd(t.vol24h()),
+                            now
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override

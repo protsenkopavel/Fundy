@@ -86,14 +86,46 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
         BybitTickerItem item = response.result().list().getFirst();
         return new TickerData(
                 instrument,
-                Double.parseDouble(item.lastPrice()),
-                Double.parseDouble(item.bid1Price()),
-                Double.parseDouble(item.ask1Price()),
-                Double.parseDouble(item.highPrice24h()),
-                Double.parseDouble(item.lowPrice24h()),
-                Double.parseDouble(item.volume24h()),
+                bd(item.lastPrice()),
+                bd(item.bid1Price()),
+                bd(item.ask1Price()),
+                bd(item.highPrice24h()),
+                bd(item.lowPrice24h()),
+                bd(item.volume24h()),
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        String url = config.getBaseUrl() + "/v5/market/tickers?category=linear";
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+
+        BybitTickerResponse resp = sendRequest(req, BybitTickerResponse.class);
+        if (resp == null || resp.retCode() != 0 || resp.result() == null)
+            throw new ExchangeException("Bybit tickers error: " +
+                    (resp != null ? resp.retMsg() : "null"));
+
+        Map<String, BybitTickerItem> bySymbol = resp.result().list().stream()
+                .collect(Collectors.toMap(BybitTickerItem::symbol, Function.identity()));
+
+        return instruments.stream()
+                .map(inst -> {
+                    BybitTickerItem i = bySymbol.get(inst.nativeSymbol());
+                    if (i == null) return null;
+                    return new TickerData(
+                            inst,
+                            bd(i.lastPrice()),
+                            bd(i.bid1Price()),
+                            bd(i.ask1Price()),
+                            bd(i.highPrice24h()),
+                            bd(i.lowPrice24h()),
+                            bd(i.volume24h()),
+                            System.currentTimeMillis()
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     public List<FundingRateData> getAllFundingRates() {

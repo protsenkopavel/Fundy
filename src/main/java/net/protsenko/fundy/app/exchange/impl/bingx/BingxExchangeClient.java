@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +21,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.blank;
 
 @Component
 public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
@@ -138,14 +140,54 @@ public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
 
         return new TickerData(
                 instrument,
-                d(pi.markPrice()),
-                Double.NaN,
-                Double.NaN,
-                Double.NaN,
-                Double.NaN,
-                0.0,
+                bd(pi.markPrice()),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
                 System.currentTimeMillis()
         );
+    }
+
+    @Override
+    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+        String path = "/openApi/swap/v2/quote/ticker";
+        HttpRequest req = unsignedGet(path, Collections.emptyMap());
+
+        BingxResponse<List<BingxTickerItem>> resp =
+                sendRequest(req, new TypeReference<>() {
+                });
+
+        if (resp == null || resp.code() != 0 || resp.data() == null) {
+            throw new ExchangeException("BingX ticker error: " +
+                    (resp != null ? resp.msg() : "null"));
+        }
+
+        Map<String, BingxTickerItem> bySymbol = resp.data().stream()
+                .collect(Collectors.toMap(BingxTickerItem::symbol,
+                        Function.identity(), (a, b) -> a));
+
+        Map<String, TradingInstrument> dict = symbolIndex();
+        long now = System.currentTimeMillis();
+
+        return instruments.stream()
+                .map(inst -> {
+                    BingxTickerItem t = bySymbol.get(ensureSymbol(inst));
+                    if (t == null) return null;
+                    return new TickerData(
+                            inst,
+                            bd(t.lastPrice()),
+                            bd(t.bestBid()),
+                            bd(t.bestAsk()),
+                            bd(t.high24h()),
+                            bd(t.low24h()),
+                            bd(t.volume24h()),
+                            now
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private HttpRequest signedGet(String path, Map<String, String> params) {
