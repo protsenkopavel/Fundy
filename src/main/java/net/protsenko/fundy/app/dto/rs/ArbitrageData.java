@@ -1,4 +1,4 @@
-package net.protsenko.fundy.app.dto;
+package net.protsenko.fundy.app.dto.rs;
 
 import net.protsenko.fundy.app.exchange.ExchangeType;
 

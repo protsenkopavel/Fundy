@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 @Component
 public class ExchangeClientFactory {
-
     private final Map<ExchangeType, ExchangeClient> registry;
 
     public ExchangeClientFactory(List<ExchangeClient> clients) {

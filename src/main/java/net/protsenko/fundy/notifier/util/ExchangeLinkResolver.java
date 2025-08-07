@@ -1,7 +1,7 @@
 package net.protsenko.fundy.notifier.util;
 
 
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 
 public final class ExchangeLinkResolver {
@@ -9,7 +9,7 @@ public final class ExchangeLinkResolver {
     private ExchangeLinkResolver() {
     }
 
-    public static String link(ExchangeType ex, TradingInstrument inst) {
+    public static String link(ExchangeType ex, InstrumentData inst) {
         String base = inst.baseAsset().toUpperCase();
         String quote = inst.quoteAsset().toUpperCase();
 

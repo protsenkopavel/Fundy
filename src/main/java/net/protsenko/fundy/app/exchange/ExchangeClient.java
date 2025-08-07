@@ -1,23 +1,23 @@
 package net.protsenko.fundy.app.exchange;
 
-import net.protsenko.fundy.app.dto.FundingRateData;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 
 import java.util.List;
 
 public interface ExchangeClient {
     ExchangeType getExchangeType();
 
-    boolean isEnabled();
+    Boolean isEnabled();
 
-    List<TradingInstrument> getAvailableInstruments();
+    List<InstrumentData> getAvailableInstruments();
 
-    TickerData getTicker(TradingInstrument instrument);
+    TickerData getTicker(InstrumentData instrument);
 
-    List<TickerData> getTickers(List<TradingInstrument> instruments);
+    List<TickerData> getTickers(List<InstrumentData> instruments);
 
-    FundingRateData getFundingRate(TradingInstrument instrument);
+    FundingRateData getFundingRate(InstrumentData instrument);
 
     List<FundingRateData> getAllFundingRates();
 }

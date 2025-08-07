@@ -2,7 +2,7 @@ package net.protsenko.fundy.notifier.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.notifier.bot.TelegramSender;
 import net.protsenko.fundy.notifier.dto.AlertKey;
@@ -51,7 +51,7 @@ public class FundingAlertService {
                 if (fr.fundingRate().abs().compareTo(s.minAbsRate()) < 0) continue;
                 if (timeTooEarlyOrLate(fr, s)) continue;
 
-                long bucket = fr.nextFundingTimeMs() / Duration.ofMinutes(15).toMillis();
+                long bucket = fr.nextFundingTs() / Duration.ofMinutes(15).toMillis();
 
                 AlertKey key = new AlertKey(s.chatId(), ex, fr.instrument().nativeSymbol(), bucket);
 
@@ -107,7 +107,7 @@ public class FundingAlertService {
 
     private boolean timeTooEarlyOrLate(FundingRateData fr, FundingAlertSettings s) {
 
-        long leftMs = fr.nextFundingTimeMs() - System.currentTimeMillis();
+        long leftMs = fr.nextFundingTs() - System.currentTimeMillis();
         return leftMs < 0 || leftMs > s.notifyBefore().toMillis();
     }
 }

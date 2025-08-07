@@ -1,9 +1,9 @@
-package net.protsenko.fundy.app.dto;
+package net.protsenko.fundy.app.dto.rs;
 
 import java.math.BigDecimal;
 
 public record TickerData(
-        TradingInstrument instrument,
+        InstrumentData instrument,
         BigDecimal lastPrice,
         BigDecimal bid,
         BigDecimal ask,

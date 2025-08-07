@@ -2,7 +2,7 @@ package net.protsenko.fundy.notifier.service;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.notifier.dto.SnapshotRefreshedEvent;
 import org.springframework.boot.context.event.ApplicationReadyEvent;

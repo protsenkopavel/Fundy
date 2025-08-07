@@ -4,8 +4,11 @@ import net.protsenko.fundy.app.exchange.ExchangeType;
 
 import java.math.BigDecimal;
 
-public record BucketEntry(String symbol,
-                          ExchangeType ex,
-                          BigDecimal price,
-                          BigDecimal funding,
-                          long nextFunding) {}
+public record BucketEntry(
+        String symbol,
+        ExchangeType ex,
+        BigDecimal price,
+        BigDecimal funding,
+        long nextFundingTs
+) {
+}

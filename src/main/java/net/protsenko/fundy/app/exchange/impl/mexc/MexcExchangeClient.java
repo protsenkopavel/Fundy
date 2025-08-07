@@ -1,9 +1,9 @@
 package net.protsenko.fundy.app.exchange.impl.mexc;
 
-import net.protsenko.fundy.app.dto.FundingRateData;
-import net.protsenko.fundy.app.dto.InstrumentType;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -22,7 +22,7 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
 @Component
 public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
 
-    private volatile Map<String, TradingInstrument> symbolIndex;
+    private volatile Map<String, InstrumentData> symbolIndex;
 
     public MexcExchangeClient(MexcConfig config) {
         super(config);
@@ -34,7 +34,7 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
     }
 
     @Override
-    protected List<TradingInstrument> fetchAvailableInstruments() {
+    protected List<InstrumentData> fetchAvailableInstruments() {
         String url = config.getBaseUrl() + "/api/v1/contract/detail";
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
 
@@ -43,24 +43,25 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
             throw new ExchangeException("MEXC instruments error: " + (resp != null ? resp.msg() : "null response"));
         }
 
-        List<TradingInstrument> list = resp.data().stream()
+        List<InstrumentData> list = resp.data().stream()
                 .filter(i -> i.state() == 0)
-                .map(i -> new TradingInstrument(
+                .map(i -> new InstrumentData(
                         i.baseCoin(),
                         i.quoteCoin(),
                         InstrumentType.PERPETUAL,
-                        i.symbol()
+                        i.symbol(),
+                        getExchangeType()
                 ))
                 .toList();
 
         symbolIndex = list.stream()
-                .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
 
         return list;
     }
 
     @Override
-    public TickerData getTicker(TradingInstrument instrument) {
+    public TickerData getTicker(InstrumentData instrument) {
         String symbol = symbol(instrument);
         String url = config.getBaseUrl() + "/api/v1/contract/ticker?symbol=" + symbol;
 
@@ -85,7 +86,7 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
     }
 
     @Override
-    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+    public List<TickerData> getTickers(List<InstrumentData> instruments) {
         String url = config.getBaseUrl() + "/api/v1/contract/ticker";
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
 
@@ -120,7 +121,7 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
     }
 
     @Override
-    public FundingRateData getFundingRate(TradingInstrument instrument) {
+    public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = symbol(instrument);
         String url = config.getBaseUrl() + "/api/v1/contract/funding_rate?symbol=" + symbol;
 
@@ -138,6 +139,7 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
                 .orElse(resp.data().getFirst());
 
         return new FundingRateData(
+                getExchangeType(),
                 instrument,
                 bd(d.fundingRate()),
                 l(d.fundingTime())
@@ -151,12 +153,13 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
 
         MexcFundingListResponse resp = sendRequest(req, MexcFundingListResponse.class);
         if (resp != null && resp.code() == 0 && resp.data() != null && !resp.data().isEmpty()) {
-            Map<String, TradingInstrument> dict = symbolIndex();
+            Map<String, InstrumentData> dict = symbolIndex();
             return resp.data().stream()
                     .map(item -> {
-                        TradingInstrument inst = dict.get(item.symbol());
+                        InstrumentData inst = dict.get(item.symbol());
                         if (inst == null) return null;
                         return new FundingRateData(
+                                getExchangeType(),
                                 inst,
                                 bd(item.fundingRate()),
                                 l(item.fundingTime())
@@ -171,17 +174,17 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
                 .toList();
     }
 
-    private Map<String, TradingInstrument> symbolIndex() {
-        Map<String, TradingInstrument> local = symbolIndex;
+    private Map<String, InstrumentData> symbolIndex() {
+        Map<String, InstrumentData> local = symbolIndex;
         if (local == null) {
             local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
             symbolIndex = local;
         }
         return local;
     }
 
-    private String symbol(TradingInstrument instrument) {
+    private String symbol(InstrumentData instrument) {
         return instrument.nativeSymbol() != null
                 ? instrument.nativeSymbol()
                 : instrument.baseAsset() + "_" + instrument.quoteAsset();

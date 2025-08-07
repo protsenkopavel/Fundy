@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import org.springframework.cache.annotation.Cacheable;
 
@@ -50,7 +50,7 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
     }
 
     @Override
-    public boolean isEnabled() {
+    public Boolean isEnabled() {
         return config.isEnabled();
     }
 
@@ -58,14 +58,14 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
     @Cacheable(cacheNames = "exchange-instruments",
             key = "#root.target.exchangeType",
             cacheManager = "caffeineCacheManager")
-    public List<TradingInstrument> getAvailableInstruments() {
+    public List<InstrumentData> getAvailableInstruments() {
         return fetchAvailableInstruments();
     }
 
-    protected abstract List<TradingInstrument> fetchAvailableInstruments();
+    protected abstract List<InstrumentData> fetchAvailableInstruments();
 
     @Override
-    public abstract TickerData getTicker(TradingInstrument instrument);
+    public abstract TickerData getTicker(InstrumentData instrument);
 
     protected <R> R sendRequest(HttpRequest request, Class<R> responseType) {
         HttpResponse<String> resp = send(request);

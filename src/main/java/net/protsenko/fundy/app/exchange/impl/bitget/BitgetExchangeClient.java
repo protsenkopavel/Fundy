@@ -1,10 +1,10 @@
 package net.protsenko.fundy.app.exchange.impl.bitget;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.InstrumentType;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.rs.TickerData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -21,13 +21,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
-import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
 
 @Component
 public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
 
     private static final long EIGHT_HOURS_MS = Duration.ofHours(8).toMillis();
-    private volatile Map<String, TradingInstrument> symbolIndex;
+    private volatile Map<String, InstrumentData> symbolIndex;
     private volatile long nextFundingGlobalMs = -1L;
 
     public BitgetExchangeClient(BitgetConfig config) {
@@ -40,7 +39,7 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
     }
 
     @Override
-    protected List<TradingInstrument> fetchAvailableInstruments() {
+    protected List<InstrumentData> fetchAvailableInstruments() {
         String url = config.getBaseUrl()
                 + "/api/mix/v1/market/contracts?productType=" + config.getProductType();
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
@@ -54,39 +53,40 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
             throw new ExchangeException("Bitget instruments error: " + (resp != null ? resp.msg() : "null response"));
         }
 
-        List<TradingInstrument> list = resp.data().stream()
+        List<InstrumentData> list = resp.data().stream()
                 .filter(i -> "normal".equalsIgnoreCase(i.symbolStatus()))
-                .map(i -> new TradingInstrument(
+                .map(i -> new InstrumentData(
                         i.baseCoin(),
                         i.quoteCoin(),
                         InstrumentType.PERPETUAL,
-                        i.symbol()
+                        i.symbol(),
+                        getExchangeType()
                 ))
                 .toList();
 
         symbolIndex = list.stream()
-                .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
 
         return list;
     }
 
-    private Map<String, TradingInstrument> symbolIndex() {
-        Map<String, TradingInstrument> local = symbolIndex;
+    private Map<String, InstrumentData> symbolIndex() {
+        Map<String, InstrumentData> local = symbolIndex;
         if (local == null) {
             local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
             symbolIndex = local;
         }
         return local;
     }
 
-    private String ensureSymbol(TradingInstrument instrument) {
+    private String ensureSymbol(InstrumentData instrument) {
         if (instrument.nativeSymbol() != null) return instrument.nativeSymbol();
         return instrument.baseAsset() + instrument.quoteAsset() + "_" + config.getProductType().toUpperCase();
     }
 
     @Override
-    public TickerData getTicker(TradingInstrument instrument) {
+    public TickerData getTicker(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
         String url = config.getBaseUrl() + "/api/mix/v1/market/ticker?symbol=" + symbol;
 
@@ -114,7 +114,7 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
     }
 
     @Override
-    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+    public List<TickerData> getTickers(List<InstrumentData> instruments) {
         String url = config.getBaseUrl()
                 + "/api/mix/v1/market/tickers?productType=" + config.getProductType();
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
@@ -136,7 +136,7 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
                         (a, b) -> a
                 ));
 
-        Map<String, TradingInstrument> dict = symbolIndex();
+        Map<String, InstrumentData> dict = symbolIndex();
         long now = System.currentTimeMillis();
 
         return instruments.stream()
@@ -159,7 +159,7 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
     }
 
     @Override
-    public FundingRateData getFundingRate(TradingInstrument instrument) {
+    public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
 
         String url = config.getBaseUrl() + "/api/mix/v1/market/current-fundRate?symbol=" + symbol;
@@ -176,7 +176,12 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
         BigDecimal rate = bd(resp.data().fundingRate());
         long next = nextFundingTimeGlobal();
 
-        return new FundingRateData(instrument, rate, next);
+        return new FundingRateData(
+                getExchangeType(),
+                instrument,
+                rate,
+                next
+        );
     }
 
     @Override
@@ -195,13 +200,14 @@ public class BitgetExchangeClient extends AbstractExchangeClient<BitgetConfig> {
         }
 
         long next = nextFundingTimeGlobal();
-        Map<String, TradingInstrument> dict = symbolIndex();
+        Map<String, InstrumentData> dict = symbolIndex();
 
         return resp.data().stream()
                 .map(t -> {
-                    TradingInstrument inst = dict.get(t.symbol());
+                    InstrumentData inst = dict.get(t.symbol());
                     if (inst == null) return null;
                     return new FundingRateData(
+                            getExchangeType(),
                             inst,
                             bd(t.fundingRate()),
                             next

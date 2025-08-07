@@ -1,7 +1,7 @@
 package net.protsenko.fundy.notifier.service;
 
 import lombok.RequiredArgsConstructor;
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;

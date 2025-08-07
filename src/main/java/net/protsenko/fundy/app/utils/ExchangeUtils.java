@@ -10,15 +10,6 @@ public final class ExchangeUtils {
         return s == null || s.isBlank();
     }
 
-    public static double d(String s) {
-        if (blank(s)) return 0.0;
-        try {
-            return Double.parseDouble(s);
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
-
     public static BigDecimal bd(String s) {
         if (blank(s)) return BigDecimal.ZERO;
         try {

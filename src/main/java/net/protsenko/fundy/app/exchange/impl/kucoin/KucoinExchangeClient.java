@@ -1,9 +1,9 @@
 package net.protsenko.fundy.app.exchange.impl.kucoin;
 
-import net.protsenko.fundy.app.dto.FundingRateData;
-import net.protsenko.fundy.app.dto.InstrumentType;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -22,7 +22,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
-import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
 
 @Component
 public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
@@ -31,7 +30,7 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
     private static final int RETRIES = 2;
     private final ExecutorService kuPool =
             Executors.newFixedThreadPool(KUCOIN_PARALLEL);
-    private volatile Map<String, TradingInstrument> symbolIndex;
+    private volatile Map<String, InstrumentData> symbolIndex;
     private volatile Map<String, KucoinContractItem> rawContractIndex;
 
     public KucoinExchangeClient(KucoinConfig config) {
@@ -44,7 +43,7 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
     }
 
     @Override
-    protected List<TradingInstrument> fetchAvailableInstruments() {
+    protected List<InstrumentData> fetchAvailableInstruments() {
         String url = config.getBaseUrl() + "/api/v1/contracts/active";
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
 
@@ -53,18 +52,19 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
             throw new ExchangeException("KuCoin returned empty contracts list");
         }
 
-        List<TradingInstrument> list = resp.data().stream()
+        List<InstrumentData> list = resp.data().stream()
                 .filter(i -> "Open".equalsIgnoreCase(i.status()))
-                .map(i -> new TradingInstrument(
+                .map(i -> new InstrumentData(
                         i.baseCurrency(),
                         i.quoteCurrency(),
                         InstrumentType.PERPETUAL,
-                        i.symbol()
+                        i.symbol(),
+                        getExchangeType()
                 ))
                 .toList();
 
         this.symbolIndex = list.stream()
-                .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
 
         this.rawContractIndex = resp.data().stream()
                 .collect(Collectors.toUnmodifiableMap(KucoinContractItem::symbol, Function.identity()));
@@ -73,7 +73,7 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
     }
 
     @Override
-    public TickerData getTicker(TradingInstrument instrument) {
+    public TickerData getTicker(InstrumentData instrument) {
         String symbol = instrument.nativeSymbol();
         if (symbol == null) {
             symbol = instrument.baseAsset() + instrument.quoteAsset() + "M";
@@ -106,7 +106,7 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
     @Cacheable(cacheNames = "exchange-tickers",
             key = "'KUCOIN'",
             cacheManager = "caffeineCacheManager")
-    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+    public List<TickerData> getTickers(List<InstrumentData> instruments) {
         return instruments.stream()
                 .map(inst -> CompletableFuture.supplyAsync(() -> fetchWithRetry(inst), kuPool))
                 .map(CompletableFuture::join)
@@ -114,7 +114,7 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
                 .toList();
     }
 
-    private TickerData fetchWithRetry(TradingInstrument inst) {
+    private TickerData fetchWithRetry(InstrumentData inst) {
         for (int i = 0; i <= RETRIES; i++) {
             try {
                 return getTicker(inst);
@@ -131,9 +131,10 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
     }
 
     @Override
-    public FundingRateData getFundingRate(TradingInstrument instrument) {
+    public FundingRateData getFundingRate(InstrumentData instrument) {
         KucoinContractItem c = contract(instrument.nativeSymbol());
         return new FundingRateData(
+                getExchangeType(),
                 instrument,
                 bd(c.fundingFeeRate()),
                 c.nextFundingRateDateTime()
@@ -142,10 +143,11 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
 
     @Override
     public List<FundingRateData> getAllFundingRates() {
-        Map<String, TradingInstrument> dict = symbolIndex();
+        Map<String, InstrumentData> dict = symbolIndex();
         return rawContractIndex().values().stream()
                 .filter(c -> "Open".equalsIgnoreCase(c.status()))
                 .map(c -> new FundingRateData(
+                        getExchangeType(),
                         dict.get(c.symbol()),
                         bd(c.fundingFeeRate()),
                         c.nextFundingRateDateTime()
@@ -159,8 +161,8 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
         return c;
     }
 
-    private Map<String, TradingInstrument> symbolIndex() {
-        Map<String, TradingInstrument> local = symbolIndex;
+    private Map<String, InstrumentData> symbolIndex() {
+        Map<String, InstrumentData> local = symbolIndex;
         if (local == null) {
             fetchAvailableInstruments();
             local = symbolIndex;

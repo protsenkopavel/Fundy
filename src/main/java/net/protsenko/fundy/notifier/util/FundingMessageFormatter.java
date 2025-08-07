@@ -1,6 +1,6 @@
 package net.protsenko.fundy.notifier.util;
 
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 
 import java.math.BigDecimal;
@@ -19,12 +19,12 @@ public final class FundingMessageFormatter {
                                 ExchangeType ex,
                                 ZoneId zone) {
         String emoji = fr.fundingRate().signum() >= 0 ? "🟥" : "🟢";
-        String time = Instant.ofEpochMilli(fr.nextFundingTimeMs())
+        String time = Instant.ofEpochMilli(fr.nextFundingTs())
                 .atZone(zone)
                 .format(DateTimeFormatter.ofPattern("HH:mm"));
         String left = prettyDuration(Duration.between(
                 Instant.now(),
-                Instant.ofEpochMilli(fr.nextFundingTimeMs())));
+                Instant.ofEpochMilli(fr.nextFundingTs())));
         String url = ExchangeLinkResolver.link(ex, fr.instrument());
 
         return String.format("%s <b>%s</b>  %s  %s (%s)  <a href=\"%s\">%s</a>",

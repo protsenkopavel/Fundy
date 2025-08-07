@@ -1,10 +1,10 @@
 package net.protsenko.fundy.app.exchange.impl.okx;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import net.protsenko.fundy.app.dto.FundingRateData;
-import net.protsenko.fundy.app.dto.InstrumentType;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -24,7 +24,8 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.l;
 
 @Component
 public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
@@ -32,7 +33,7 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
     private static final int MAX_PARALLEL = 48;
     private final ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL);
 
-    private volatile Map<String, TradingInstrument> symbolIndex;
+    private volatile Map<String, InstrumentData> symbolIndex;
 
     public OkxExchangeClient(OkxConfig config) {
         super(config);
@@ -44,7 +45,7 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
     }
 
     @Override
-    protected List<TradingInstrument> fetchAvailableInstruments() {
+    protected List<InstrumentData> fetchAvailableInstruments() {
         String url = config.getBaseUrl() + "/api/v5/public/instruments?instType=SWAP";
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -59,31 +60,37 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
             throw new ExchangeException("OKX instruments error: " + (resp != null ? resp.msg() : "null"));
         }
 
-        List<TradingInstrument> list = resp.data().stream()
+        List<InstrumentData> list = resp.data().stream()
                 .filter(i -> "SWAP".equalsIgnoreCase(i.instType()) && "live".equalsIgnoreCase(i.state()))
-                .map(this::toTradingInstrument)
+                .map(this::toInstrumentData)
                 .toList();
 
         symbolIndex = list.stream()
                 .filter(i -> i.nativeSymbol() != null && !i.nativeSymbol().isBlank())
-                .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
 
         return list;
     }
 
-    private TradingInstrument toTradingInstrument(OkxInstrumentItem it) {
+    private InstrumentData toInstrumentData(OkxInstrumentItem it) {
         String[] parts = it.instId().split("-");
         String base = parts.length > 0 ? parts[0] : "";
         String quote = parts.length > 1 ? parts[1] : "";
-        return new TradingInstrument(base, quote, InstrumentType.PERPETUAL, it.instId());
+        return new InstrumentData(
+                base,
+                quote,
+                InstrumentType.PERPETUAL,
+                it.instId(),
+                getExchangeType()
+        );
     }
 
-    private String ensureSymbol(TradingInstrument inst) {
+    private String ensureSymbol(InstrumentData inst) {
         return inst.nativeSymbol() != null ? inst.nativeSymbol() : inst.baseAsset() + "-" + inst.quoteAsset() + "-SWAP";
     }
 
     @Override
-    public TickerData getTicker(TradingInstrument instrument) {
+    public TickerData getTicker(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
         String url = config.getBaseUrl() + "/api/v5/market/ticker?instId=" + symbol;
 
@@ -114,7 +121,7 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
     }
 
     @Override
-    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+    public List<TickerData> getTickers(List<InstrumentData> instruments) {
         String url = config.getBaseUrl() + "/api/v5/market/tickers?instType=SWAP";
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -160,9 +167,9 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
 
     @Override
     @Cacheable(cacheNames = "okx-funding", key = "#instrument.nativeSymbol()", cacheManager = "caffeineCacheManager")
-    public FundingRateData getFundingRate(TradingInstrument instrument) {
+    public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
-        String url = config.getBaseUrl() + "/api/v5/public/funding-rate?instId=" + symbol;
+        String url = config.getBaseUrl() + "/api/v5/public/funding-fundingRate?instId=" + symbol;
 
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -181,12 +188,17 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
         BigDecimal rate = bd(f.fundingRate());
         long next = l(f.nextFundingTime());
 
-        return new FundingRateData(instrument, rate, next);
+        return new FundingRateData(
+                getExchangeType(),
+                instrument,
+                rate,
+                next
+        );
     }
 
     @Override
     public List<FundingRateData> getAllFundingRates() {
-        List<TradingInstrument> instruments = getAvailableInstruments().stream()
+        List<InstrumentData> instruments = getAvailableInstruments().stream()
                 .filter(i -> i.nativeSymbol().endsWith("-USDT-SWAP"))
                 .toList();
 

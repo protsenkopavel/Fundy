@@ -1,9 +1,10 @@
 package net.protsenko.fundy.app.service;
 
 import lombok.RequiredArgsConstructor;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
-import net.protsenko.fundy.app.dto.TradingInstrumentRequest;
+import net.protsenko.fundy.app.dto.rq.InstrumentsRequest;
+import net.protsenko.fundy.app.dto.rq.TickersRequest;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
@@ -20,21 +21,31 @@ public class MarketDataService {
     private final ExchangeClientFactory factory;
     private final InstrumentResolver resolver;
 
-    public List<TradingInstrument> getAvailableInstruments(ExchangeType type) {
+    public List<InstrumentData> getAvailableInstruments(ExchangeType type) {
         ExchangeClient client = client(type);
         return client.getAvailableInstruments();
     }
 
-    public TickerData getTicker(ExchangeType ex, String base, String quote) {
-        TradingInstrument inst = resolver.resolve(ex, base, quote);
-        return client(ex).getTicker(inst);
+    public List<InstrumentData> getAvailableInstruments(InstrumentsRequest req) {
+        return req.effectiveExchanges().parallelStream()
+                .flatMap(ex -> client(ex).getAvailableInstruments().stream())
+                .toList();
     }
 
-    public List<TickerData> getTickers(ExchangeType ex, List<TradingInstrumentRequest> reqs) {
-        List<TradingInstrument> instruments = reqs.stream()
-                .map(r -> resolver.resolve(ex, r.base(), r.quote()))
+    public List<TickerData> getTickers(TickersRequest req) {
+        return req.effectiveExchanges().parallelStream()
+                .flatMap(ex -> {
+                    ExchangeClient c = client(ex);
+
+                    List<InstrumentData> target = req.hasPairs()
+                            ? req.pairs().stream()
+                            .map(p -> resolver.resolve(ex, p.base(), p.quote()))
+                            .toList()
+                            : c.getAvailableInstruments();
+
+                    return c.getTickers(target).stream();
+                })
                 .toList();
-        return client(ex).getTickers(instruments);
     }
 
     private ExchangeClient client(ExchangeType ex) {

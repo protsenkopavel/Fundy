@@ -2,7 +2,7 @@ package net.protsenko.fundy.notifier.bot;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.notifier.dto.FundingAlertSettings;
 import net.protsenko.fundy.notifier.dto.SnapshotRefreshedEvent;
@@ -110,7 +110,7 @@ public class FundingBot extends TelegramLongPollingBot {
                 new BotCommand("top", "Показать топ фандингов сейчас"),
                 new BotCommand("min", "Мин. ставка (%)"),
                 new BotCommand("before", "Время до начисления"),
-                new BotCommand("tz", "Часовой пояс"),
+                new BotCommand("timeZone", "Часовой пояс"),
                 new BotCommand("exchanges", "Выбор бирж"),
                 new BotCommand("help", "Справка"),
                 new BotCommand("stop", "Остановить уведомления"),
@@ -222,7 +222,7 @@ public class FundingBot extends TelegramLongPollingBot {
             case "/top" -> previewAsync(chatId);
             case "/min" -> handleSlashMin(chatId, args);
             case "/before" -> handleSlashBefore(chatId, args);
-            case "/tz" -> handleSlashTz(chatId, args);
+            case "/timeZone" -> handleSlashTz(chatId, args);
             case "/exchanges" -> showExchangeToggles(chatId, null);
             case "/help" -> send(chatId, helpText(), null);
             case "/stop" -> send(chatId, "Ок, не буду слать уведомления. (/start чтобы включить)", null);
@@ -320,7 +320,7 @@ public class FundingBot extends TelegramLongPollingBot {
         send(chatId, "Ссылка на регистрацию (%d ч):\n".formatted(ttl.toHours()) + link, null);
     }
 
-    /* ---------- /min, /before, /tz ---------- */
+    /* ---------- /min, /before, /timeZone ---------- */
 
     private void handleSlashMin(long chatId, String args) {
         if (args.isBlank()) {
@@ -359,7 +359,7 @@ public class FundingBot extends TelegramLongPollingBot {
 
     private void handleSlashTz(long chatId, String args) {
         if (args.isBlank()) {
-            send(chatId, "Пример: /tz Europe/Moscow", null);
+            send(chatId, "Пример: /timeZone Europe/Moscow", null);
             return;
         }
         try {
@@ -368,7 +368,7 @@ public class FundingBot extends TelegramLongPollingBot {
             repo.save(new FundingAlertSettings(chatId, old.minAbsRate(), old.exchanges(), old.notifyBefore(), z, old.bucketSize()));
             send(chatId, "Часовой пояс: " + z, null);
         } catch (Exception e) {
-            reportUserError(chatId, "Не понял TZ. Пример: /tz Europe/Moscow");
+            reportUserError(chatId, "Не понял TZ. Пример: /timeZone Europe/Moscow");
         }
     }
 
@@ -401,7 +401,7 @@ public class FundingBot extends TelegramLongPollingBot {
                 /top — топ фандингов сейчас
                 /min <pct> — мин. ставка, % (например /min 0.7)
                 /before <30m|1h> — время до начисления начисления
-                /tz <ZoneId> — часовой пояс (Europe/Moscow)
+                /timeZone <ZoneId> — часовой пояс (Europe/Moscow)
                 /exchanges — выбрать биржи
                 /stop — перестать слать уведомления
                 """;
@@ -549,7 +549,7 @@ public class FundingBot extends TelegramLongPollingBot {
                 .filter(e -> {
                     BigDecimal rate = e.getValue().fundingRate().abs();
                     return rate.compareTo(s.minAbsRate()) >= 0
-                            && e.getValue().nextFundingTimeMs() > System.currentTimeMillis();
+                            && e.getValue().nextFundingTs() > System.currentTimeMillis();
                 })
                 .sorted(Comparator.comparing(
                         (Map.Entry<ExchangeType, FundingRateData> e)

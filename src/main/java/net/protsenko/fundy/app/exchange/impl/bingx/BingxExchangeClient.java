@@ -1,10 +1,10 @@
 package net.protsenko.fundy.app.exchange.impl.bingx;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import net.protsenko.fundy.app.dto.FundingRateData;
 import net.protsenko.fundy.app.dto.InstrumentType;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
@@ -27,10 +26,64 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.blank;
 @Component
 public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
 
-    private volatile Map<String, TradingInstrument> symbolIndex;
+    private volatile Map<String, InstrumentData> symbolIndex;
+
+    private volatile Map<String, BingxTickerItem> tickerCache;
+    private volatile long tickerCacheTs;
+
+    private volatile Map<String, BingxPremiumIndexItem> premiumCache;
+    private volatile long premiumCacheTs;
 
     public BingxExchangeClient(BingxConfig config) {
         super(config);
+    }
+
+    private Map<String, BingxTickerItem> fetchTickers() {
+        long now = System.currentTimeMillis();
+        Map<String, BingxTickerItem> local = tickerCache;
+
+        if (local == null || now - tickerCacheTs > 100) {
+            HttpRequest req = unsignedGet("/openApi/swap/v2/quote/ticker", Map.of());
+            BingxResponse<List<BingxTickerItem>> r =
+                    sendRequest(req, new TypeReference<>() {
+                    });
+
+            if (r == null || r.code() != 0 || r.data() == null)
+                throw new ExchangeException("BingX ticker error: " +
+                        (r != null ? r.msg() : "null"));
+
+            local = r.data().stream()
+                    .collect(Collectors.toMap(BingxTickerItem::symbol,
+                            Function.identity(),
+                            (a, b) -> a));
+            tickerCache = local;
+            tickerCacheTs = now;
+        }
+        return local;
+    }
+
+    private Map<String, BingxPremiumIndexItem> fetchPremiumIndex() {
+        long now = System.currentTimeMillis();
+        var local = premiumCache;
+
+        if (local == null || now - premiumCacheTs > 500) {
+            HttpRequest req = signedGet("/openApi/swap/v2/quote/premiumIndex", Map.of());
+            BingxResponse<List<BingxPremiumIndexItem>> r =
+                    sendRequest(req, new TypeReference<>() {
+                    });
+
+            if (r == null || r.code() != 0 || r.data() == null)
+                throw new ExchangeException("BingX premiumIndex error: " +
+                        (r != null ? r.msg() : "null"));
+
+            local = r.data().stream()
+                    .collect(Collectors.toMap(BingxPremiumIndexItem::symbol,
+                            Function.identity(),
+                            (a, b) -> a));
+            premiumCache = local;
+            premiumCacheTs = now;
+        }
+        return local;
     }
 
     @Override
@@ -39,7 +92,7 @@ public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
     }
 
     @Override
-    protected List<TradingInstrument> fetchAvailableInstruments() {
+    protected List<InstrumentData> fetchAvailableInstruments() {
         String path = "/openApi/swap/v2/quote/contracts";
         HttpRequest req = signedGet(path, Collections.emptyMap());
 
@@ -51,143 +104,103 @@ public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
             throw new ExchangeException("BingX contracts error: " + (resp != null ? resp.msg() : "null"));
         }
 
-        List<TradingInstrument> list = resp.data().stream()
+        List<InstrumentData> list = resp.data().stream()
                 .filter(i -> i.status() == 1)
-                .map(i -> new TradingInstrument(
+                .map(i -> new InstrumentData(
                         i.asset(),
                         i.currency(),
                         InstrumentType.PERPETUAL,
-                        i.symbol()
+                        i.symbol(),
+                        getExchangeType()
                 ))
                 .toList();
 
         symbolIndex = list.stream()
                 .filter(i -> i.nativeSymbol() != null && !i.nativeSymbol().isBlank())
-                .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
 
         return list;
     }
 
-    private Map<String, TradingInstrument> symbolIndex() {
-        Map<String, TradingInstrument> local = symbolIndex;
+    private Map<String, InstrumentData> symbolIndex() {
+        Map<String, InstrumentData> local = symbolIndex;
         if (local == null) {
             local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
             symbolIndex = local;
         }
         return local;
     }
 
-    private String ensureSymbol(TradingInstrument inst) {
+    private String ensureSymbol(InstrumentData inst) {
         return inst.nativeSymbol() != null ? inst.nativeSymbol()
                 : inst.baseAsset() + "-" + inst.quoteAsset();
     }
 
     @Override
-    public FundingRateData getFundingRate(TradingInstrument instrument) {
-        String symbol = ensureSymbol(instrument);
-        BingxPremiumIndexItem pi = premiumIndexAll().stream()
-                .filter(x -> x.symbol().equalsIgnoreCase(symbol))
-                .findFirst()
-                .orElseThrow(() -> new ExchangeException("No premiumIndex for " + symbol));
+    public FundingRateData getFundingRate(InstrumentData inst) {
+        var pi = fetchPremiumIndex().get(ensureSymbol(inst));
+        if (pi == null)
+            throw new ExchangeException("No premiumIndex for " + inst.nativeSymbol());
 
+        return toFunding(inst, pi);
+    }
+
+    @Override
+    public List<FundingRateData> getAllFundingRates() {
+        var dict = symbolIndex();
+        return fetchPremiumIndex().values().stream()
+                .map(pi -> {
+                    var inst = dict.get(pi.symbol());
+                    return inst == null ? null : toFunding(inst, pi);
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private FundingRateData toFunding(InstrumentData i, BingxPremiumIndexItem pi) {
         return new FundingRateData(
-                instrument,
+                getExchangeType(),
+                i,
                 bd(pi.lastFundingRate()),
                 pi.nextFundingTime()
         );
     }
 
     @Override
-    public List<FundingRateData> getAllFundingRates() {
-        List<BingxPremiumIndexItem> items = premiumIndexAll();
-        Map<String, TradingInstrument> dict = symbolIndex();
+    public TickerData getTicker(InstrumentData inst) {
+        BingxTickerItem t = fetchTickers().get(ensureSymbol(inst));
+        if (t == null)
+            throw new ExchangeException("No ticker for " + inst.nativeSymbol());
 
-        return items.stream()
-                .map(pi -> {
-                    TradingInstrument inst = dict.get(pi.symbol());
-                    if (inst == null) return null;
-                    return new FundingRateData(
-                            inst,
-                            bd(pi.lastFundingRate()),
-                            pi.nextFundingTime()
-                    );
-                })
-                .filter(Objects::nonNull)
-                .toList();
-    }
-
-    private List<BingxPremiumIndexItem> premiumIndexAll() {
-        String path = "/openApi/swap/v2/quote/premiumIndex";
-        HttpRequest req = signedGet(path, Collections.emptyMap());
-
-        BingxResponse<List<BingxPremiumIndexItem>> resp =
-                sendRequest(req, new TypeReference<>() {
-                });
-
-        if (resp == null || resp.code() != 0 || resp.data() == null) {
-            throw new ExchangeException("BingX premiumIndex error: " + (resp != null ? resp.msg() : "null"));
-        }
-        return resp.data();
+        return toTicker(inst, t, System.currentTimeMillis());
     }
 
     @Override
-    public TickerData getTicker(TradingInstrument instrument) {
-        BingxPremiumIndexItem pi = premiumIndexAll().stream()
-                .filter(x -> x.symbol().equalsIgnoreCase(ensureSymbol(instrument)))
-                .findFirst()
-                .orElseThrow(() -> new ExchangeException("No premiumIndex for ticker"));
-
-        return new TickerData(
-                instrument,
-                bd(pi.markPrice()),
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                System.currentTimeMillis()
-        );
-    }
-
-    @Override
-    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
-        String path = "/openApi/swap/v2/quote/ticker";
-        HttpRequest req = unsignedGet(path, Collections.emptyMap());
-
-        BingxResponse<List<BingxTickerItem>> resp =
-                sendRequest(req, new TypeReference<>() {
-                });
-
-        if (resp == null || resp.code() != 0 || resp.data() == null) {
-            throw new ExchangeException("BingX ticker error: " +
-                    (resp != null ? resp.msg() : "null"));
-        }
-
-        Map<String, BingxTickerItem> bySymbol = resp.data().stream()
-                .collect(Collectors.toMap(BingxTickerItem::symbol,
-                        Function.identity(), (a, b) -> a));
-
-        Map<String, TradingInstrument> dict = symbolIndex();
-        long now = System.currentTimeMillis();
+    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+        var map = fetchTickers();
+        long ts = System.currentTimeMillis();
 
         return instruments.stream()
-                .map(inst -> {
-                    BingxTickerItem t = bySymbol.get(ensureSymbol(inst));
-                    if (t == null) return null;
-                    return new TickerData(
-                            inst,
-                            bd(t.lastPrice()),
-                            bd(t.bestBid()),
-                            bd(t.bestAsk()),
-                            bd(t.high24h()),
-                            bd(t.low24h()),
-                            bd(t.volume24h()),
-                            now
-                    );
+                .map(i -> {
+                    var t = map.get(ensureSymbol(i));
+                    return t == null ? null : toTicker(i, t, ts);
                 })
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    private TickerData toTicker(InstrumentData i, BingxTickerItem t, long ts) {
+        return new TickerData(
+                i,
+                bd(t.lastPrice()),
+                bd(t.bestBid()),
+                bd(t.bestAsk()),
+                bd(t.high24h()),
+                bd(t.low24h()),
+                bd(t.volume24h()),
+                ts
+        );
     }
 
     private HttpRequest signedGet(String path, Map<String, String> params) {

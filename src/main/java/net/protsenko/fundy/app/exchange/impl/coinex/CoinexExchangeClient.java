@@ -1,10 +1,10 @@
 package net.protsenko.fundy.app.exchange.impl.coinex;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.InstrumentType;
-import net.protsenko.fundy.app.dto.TickerData;
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -21,12 +21,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
-import static net.protsenko.fundy.app.utils.ExchangeUtils.d;
 
 @Component
 public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
 
-    private volatile Map<String, TradingInstrument> symbolIndex;
+    private volatile Map<String, InstrumentData> symbolIndex;
     private volatile Map<String, CoinexContractItem> contractMeta;
 
     public CoinexExchangeClient(CoinexConfig config) {
@@ -50,7 +49,7 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
     }
 
     @Override
-    protected List<TradingInstrument> fetchAvailableInstruments() {
+    protected List<InstrumentData> fetchAvailableInstruments() {
         String url = config.getBaseUrl() + "/perpetual/v1/market/list";
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -68,14 +67,14 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
 
         List<CoinexContractItem> list = resp.data();
 
-        List<TradingInstrument> instruments = list.stream()
+        List<InstrumentData> instruments = list.stream()
                 .filter(CoinexContractItem::available)
                 .filter(i -> i.type() == 1)
                 .map(this::toInstrument)
                 .toList();
 
         symbolIndex = instruments.stream()
-                .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
 
         contractMeta = list.stream()
                 .collect(Collectors.toUnmodifiableMap(CoinexContractItem::name, Function.identity()));
@@ -83,27 +82,28 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
         return instruments;
     }
 
-    private TradingInstrument toInstrument(CoinexContractItem c) {
-        return new TradingInstrument(
+    private InstrumentData toInstrument(CoinexContractItem c) {
+        return new InstrumentData(
                 c.stock(),
                 c.money(),
                 InstrumentType.PERPETUAL,
-                c.name()
+                c.name(),
+                getExchangeType()
         );
     }
 
-    private Map<String, TradingInstrument> symbolIndex() {
-        Map<String, TradingInstrument> local = symbolIndex;
+    private Map<String, InstrumentData> symbolIndex() {
+        Map<String, InstrumentData> local = symbolIndex;
         if (local == null) {
             local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(TradingInstrument::nativeSymbol, Function.identity()));
+                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
             symbolIndex = local;
         }
         return local;
     }
 
     @Override
-    public TickerData getTicker(TradingInstrument instrument) {
+    public TickerData getTicker(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
         String url = config.getBaseUrl() + "/perpetual/v1/market/ticker?market=" + symbol;
 
@@ -136,9 +136,9 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
     }
 
     @Override
-    public List<TickerData> getTickers(List<TradingInstrument> instruments) {
+    public List<TickerData> getTickers(List<InstrumentData> instruments) {
         Map<String, CoinexTickerItem> all = tickerAllMap();
-        Map<String, TradingInstrument> dict = symbolIndex();
+        Map<String, InstrumentData> dict = symbolIndex();
         long now = System.currentTimeMillis();
 
         return instruments.stream()
@@ -161,7 +161,7 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
     }
 
     @Override
-    public FundingRateData getFundingRate(TradingInstrument instrument) {
+    public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
         CoinexTickerItem t = tickerAllMap().get(symbol);
         if (t == null) {
@@ -171,20 +171,26 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
         BigDecimal rate = bd(t.fundingRateLast());
         long nextMs = calcNextFundingMs(t.fundingTime());
 
-        return new FundingRateData(instrument, rate, nextMs);
+        return new FundingRateData(
+                getExchangeType(),
+                instrument,
+                rate,
+                nextMs
+        );
     }
 
     @Override
     public List<FundingRateData> getAllFundingRates() {
         Map<String, CoinexTickerItem> map = tickerAllMap();
-        Map<String, TradingInstrument> dict = symbolIndex();
+        Map<String, InstrumentData> dict = symbolIndex();
 
         return map.entrySet().stream()
                 .map(e -> {
-                    TradingInstrument inst = dict.get(e.getKey());
+                    InstrumentData inst = dict.get(e.getKey());
                     if (inst == null) return null;
                     CoinexTickerItem t = e.getValue();
                     return new FundingRateData(
+                            getExchangeType(),
                             inst,
                             bd(t.fundingRateLast()),
                             calcNextFundingMs(t.fundingTime())
@@ -194,7 +200,7 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
                 .toList();
     }
 
-    private String ensureSymbol(TradingInstrument inst) {
+    private String ensureSymbol(InstrumentData inst) {
         return inst.nativeSymbol() != null ? inst.nativeSymbol()
                 : inst.baseAsset().toUpperCase() + inst.quoteAsset().toUpperCase();
     }

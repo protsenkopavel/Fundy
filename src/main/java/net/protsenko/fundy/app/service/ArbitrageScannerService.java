@@ -2,7 +2,13 @@ package net.protsenko.fundy.app.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.BucketEntry;
+import net.protsenko.fundy.app.dto.InstrumentType;
+import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
+import net.protsenko.fundy.app.dto.rs.ArbitrageData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -20,23 +26,19 @@ import java.util.stream.Stream;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ArbitrageService {
-
+public class ArbitrageScannerService {
     private static final MathContext MC = new MathContext(8, RoundingMode.HALF_UP);
-
     private final ExchangeClientFactory factory;
 
-    public List<ArbitrageData> findArbitrageOpportunities(ArbitrageFilter f) {
+    public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest f) {
 
-        ZoneId zone = f.zone() == null ? ZoneId.systemDefault() : ZoneId.of(f.zone());
-        BigDecimal minFr = f.minFr() == null ? BigDecimal.ZERO : f.minFr();
-        BigDecimal minPr = f.minPr() == null ? BigDecimal.ZERO : f.minPr();
-        Set<ExchangeType> exchanges = (f.exchanges() == null || f.exchanges().isEmpty())
-                ? EnumSet.allOf(ExchangeType.class)
-                : EnumSet.copyOf(f.exchanges());
+        ZoneId zone = f.zone();
+        BigDecimal minFr = f.minFr();
+        BigDecimal minPr = f.minPr();
+        Set<ExchangeType> ex = f.effectiveExchanges();
 
-        Map<String, List<BucketEntry>> bySymbol = exchanges.parallelStream()
-                .flatMap(ex -> loadExchangeData(ex, zone))
+        Map<String, List<BucketEntry>> bySymbol = ex.parallelStream()
+                .flatMap(e -> loadExchangeData(e, zone))
                 .collect(Collectors.groupingByConcurrent(BucketEntry::symbol));
 
         return bySymbol.entrySet().parallelStream()
@@ -59,7 +61,7 @@ public class ArbitrageService {
                             (a, b) -> a
                     ));
 
-            List<TradingInstrument> instruments = client.getAvailableInstruments().stream()
+            List<InstrumentData> instruments = client.getAvailableInstruments().stream()
                     .filter(i -> i.type() == InstrumentType.PERPETUAL)
                     .toList();
             if (instruments.isEmpty()) return Stream.empty();
@@ -73,7 +75,7 @@ public class ArbitrageService {
 
                         BigDecimal frValue = fr == null ? null : fr.fundingRate();
                         long nextFunding = fr == null ? 0L : Instant
-                                .ofEpochMilli(fr.nextFundingTimeMs())
+                                .ofEpochMilli(fr.nextFundingTs())
                                 .atZone(zone).toInstant().toEpochMilli();
 
                         return new BucketEntry(symbol, ex, tk.lastPrice(), frValue, nextFunding);
@@ -115,7 +117,7 @@ public class ArbitrageService {
                 .filter(it -> it.funding() != null)
                 .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::funding, BigDecimal::max));
         Map<ExchangeType, Long> nextFundingMap = list.stream()
-                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::nextFunding, Math::min));
+                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::nextFundingTs, Math::min));
 
         return new ArbitrageData(
                 symbol,
@@ -157,7 +159,7 @@ public class ArbitrageService {
         return bestLong == null ? null : new ArbitrageData.Decision(bestLong, bestShort);
     }
 
-    private String key(TradingInstrument i) {
+    private String key(InstrumentData i) {
         return i.baseAsset() + i.quoteAsset();
     }
 }

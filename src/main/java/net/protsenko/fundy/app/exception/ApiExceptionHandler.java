@@ -1,8 +1,7 @@
-package net.protsenko.fundy.app.controller;
+package net.protsenko.fundy.app.exception;
 
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.ErrorResponse;
-import net.protsenko.fundy.app.exception.ExchangeException;
+import net.protsenko.fundy.app.dto.rs.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
