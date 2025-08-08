@@ -19,6 +19,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -74,11 +75,19 @@ public class ArbitrageScannerService {
                         FundingRateData fr = fundBySymbol.get(symbol);
 
                         BigDecimal frValue = fr == null ? null : fr.fundingRate();
-                        long nextFunding = fr == null ? 0L : Instant
-                                .ofEpochMilli(fr.nextFundingTs())
-                                .atZone(zone).toInstant().toEpochMilli();
 
-                        return new BucketEntry(symbol, ex, tk.lastPrice(), frValue, nextFunding);
+                        long nextFundingTs = 0L;
+                        if (fr != null) {
+                            var ldtUtc = Instant.ofEpochMilli(fr.nextFundingTs())
+                                    .atZone(ZoneOffset.UTC)
+                                    .toLocalDateTime();
+                            nextFundingTs = ldtUtc.atZone(zone)
+                                    .toInstant()
+                                    .toEpochMilli();
+                        }
+
+                        return new BucketEntry(symbol, ex,
+                                tk.lastPrice(), frValue, nextFundingTs);
                     })
                     .filter(be -> be.price().compareTo(BigDecimal.ZERO) > 0);
         } catch (Exception e) {
@@ -160,10 +169,19 @@ public class ArbitrageScannerService {
     }
 
     private String key(InstrumentData i) {
-        return i.baseAsset() + i.quoteAsset();
+        String s = (i.nativeSymbol() != null && !i.nativeSymbol().isBlank())
+                ? i.nativeSymbol()
+                : i.baseAsset() + i.quoteAsset();
+        return norm(s);
     }
 
     private String key(String symbol) {
-        return symbol;
+        return norm(symbol);
+    }
+
+    private String norm(String symbol) {
+        return symbol.replaceAll("[-_/]", "")
+                .replaceAll("(?i)swap$", "")
+                .toUpperCase();
     }
 }

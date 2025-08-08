@@ -169,7 +169,7 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
     @Cacheable(cacheNames = "okx-funding", key = "#instrument.nativeSymbol()", cacheManager = "caffeineCacheManager")
     public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
-        String url = config.getBaseUrl() + "/api/v5/public/funding-fundingRate?instId=" + symbol;
+        String url = config.getBaseUrl() + "/api/v5/public/funding-rate?instId=" + symbol;
 
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
