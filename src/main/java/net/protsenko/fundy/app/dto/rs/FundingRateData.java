@@ -6,7 +6,16 @@ import java.math.BigDecimal;
 
 public record FundingRateData(
         ExchangeType exchange,
-        InstrumentData instrument,
+        String symbol,
         BigDecimal fundingRate,
         Long nextFundingTs
-) { }
+) {
+    public FundingRateData(ExchangeType exchange, InstrumentData instrument, BigDecimal fundingRate, Long nextFundingTs) {
+        this(exchange, instrument.nativeSymbol() != null ? instrument.nativeSymbol() : instrument.baseAsset() + instrument.quoteAsset(),
+             fundingRate, nextFundingTs);
+    }
+
+    public String instrument() {
+        return symbol;
+    }
+}

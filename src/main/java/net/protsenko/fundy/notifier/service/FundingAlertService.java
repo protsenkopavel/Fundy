@@ -53,7 +53,7 @@ public class FundingAlertService {
 
                 long bucket = fr.nextFundingTs() / Duration.ofMinutes(15).toMillis();
 
-                AlertKey key = new AlertKey(s.chatId(), ex, fr.instrument().nativeSymbol(), bucket);
+                AlertKey key = new AlertKey(s.chatId(), ex, fr.instrument(), bucket);
 
                 BigDecimal newRate = fr.fundingRate()
                         .setScale(2, RoundingMode.HALF_UP);

@@ -19,17 +19,31 @@ public final class FundingMessageFormatter {
                                 ExchangeType ex,
                                 ZoneId zone) {
         String emoji = fr.fundingRate().signum() >= 0 ? "🟥" : "🟢";
+        String symbol = fr.instrument();
+        String baseAsset = "";
+        if (symbol != null) {
+            if (symbol.contains("-")) {
+                baseAsset = symbol.substring(0, symbol.indexOf('-'));
+            } else if (symbol.contains("_")) {
+                baseAsset = symbol.substring(0, symbol.indexOf('_'));
+            } else if (symbol.length() >= 2) {
+                int len = symbol.length();
+                baseAsset = symbol.substring(0, len / 2);
+            } else {
+                baseAsset = symbol;
+            }
+        }
         String time = Instant.ofEpochMilli(fr.nextFundingTs())
                 .atZone(zone)
                 .format(DateTimeFormatter.ofPattern("HH:mm"));
         String left = prettyDuration(Duration.between(
                 Instant.now(),
                 Instant.ofEpochMilli(fr.nextFundingTs())));
-        String url = ExchangeLinkResolver.link(ex, fr.instrument());
+        String url = ExchangeLinkResolver.link(ex, symbol);
 
         return String.format("%s <b>%s</b>  %s  %s (%s)  <a href=\"%s\">%s</a>",
                 emoji,
-                fr.instrument().baseAsset(),
+                baseAsset != null ? baseAsset.toUpperCase() : "",
                 pct(fr.fundingRate()),
                 time,
                 left,

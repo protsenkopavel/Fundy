@@ -162,4 +162,8 @@ public class ArbitrageScannerService {
     private String key(InstrumentData i) {
         return i.baseAsset() + i.quoteAsset();
     }
+
+    private String key(String symbol) {
+        return symbol;
+    }
 }
