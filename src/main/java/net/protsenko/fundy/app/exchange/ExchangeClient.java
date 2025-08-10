@@ -9,6 +9,7 @@ import java.util.List;
 public interface ExchangeClient {
     List<InstrumentData> getInstruments();
 
+    // TODO
     TickerData getTicker(InstrumentData instrument);
 
     List<TickerData> getTickers(List<InstrumentData> instruments);

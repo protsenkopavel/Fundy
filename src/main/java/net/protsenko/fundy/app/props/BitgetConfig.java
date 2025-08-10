@@ -1,4 +1,4 @@
-package net.protsenko.fundy.app.exchange.impl.bitget;
+package net.protsenko.fundy.app.props;
 
 import lombok.Getter;
 import lombok.Setter;

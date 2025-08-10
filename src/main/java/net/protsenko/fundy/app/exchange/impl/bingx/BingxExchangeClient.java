@@ -1,159 +1,114 @@
 package net.protsenko.fundy.app.exchange.impl.bingx;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
-import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
+import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.props.BingxConfig;
+import net.protsenko.fundy.app.utils.HttpExecutor;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
-import java.net.http.HttpRequest;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 
+@Slf4j
 @Component
-public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
+@RequiredArgsConstructor
+public class BingxExchangeClient implements ExchangeClient {
 
-    public BingxExchangeClient(BingxConfig config) {
-        super(config);
-    }
+    private final HttpExecutor httpExecutor;
+    private final BingxConfig config;
 
     @Override
     public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/openApi/swap/v2/quote/contracts";
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .build();
-
-        BingxResponse<List<BingxContractItem>> resp = sendRequest(req, new TypeReference<>() {
+        BingxResponse<List<BingxContractItem>> response = httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
         });
 
-        if (resp == null || resp.code() != 0 || resp.data() == null) {
-            throw new ExchangeException("BingX contracts error: " + (resp != null ? resp.msg() : "null"));
+        if (response == null || response.code() != 0 || response.data() == null) {
+            throw new ExchangeException("BingX contracts error: " + (response != null ? response.msg() : "null"));
         }
 
-        return resp.data().stream()
-                .filter(i -> i.status() == 1)
-                .map(i -> new InstrumentData(
-                        i.asset(),
-                        i.currency(),
-                        InstrumentType.PERPETUAL,
-                        i.symbol(),
-                        getExchangeType()
-                ))
+        return response.data().stream()
+                .filter(contract -> contract.status() == 1)
+                .map(this::toInstrument)
                 .toList();
     }
 
     @Override
-    public TickerData getTicker(InstrumentData inst) {
+    public TickerData getTicker(InstrumentData instrument) {
         String url = config.getBaseUrl() + "/openApi/swap/v2/quote/ticker";
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .build();
-
-        BingxResponse<List<BingxTickerItem>> r = sendRequest(req, new TypeReference<>() {
+        BingxResponse<List<BingxTickerItem>> response = httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
         });
 
-        if (r == null || r.code() != 0 || r.data() == null) {
-            throw new ExchangeException("BingX ticker error: " + (r != null ? r.msg() : "null"));
+        if (response == null || response.code() != 0 || response.data() == null) {
+            throw new ExchangeException("BingX ticker error: " + (response != null ? response.msg() : "null"));
         }
 
-        String symbol = ensureSymbol(inst);
-        Map<String, BingxTickerItem> bySymbol = r.data().stream()
-                .collect(Collectors.toMap(BingxTickerItem::symbol, Function.identity(), (a, b) -> a));
+        String symbol = ensureSymbol(instrument);
+        Map<String, BingxTickerItem> bySymbol = response.data().stream().collect(Collectors.toMap(BingxTickerItem::symbol, Function.identity(), (a, b) -> a));
 
-        BingxTickerItem t = bySymbol.get(symbol);
-        if (t == null) throw new ExchangeException("No ticker for " + symbol);
-
-        long ts = System.currentTimeMillis();
-        return toTicker(inst, t, ts);
+        return toTicker(instrument, bySymbol.get(symbol));
     }
 
     @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
         String url = config.getBaseUrl() + "/openApi/swap/v2/quote/ticker";
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .build();
-
-        BingxResponse<List<BingxTickerItem>> r = sendRequest(req, new TypeReference<>() {
+        BingxResponse<List<BingxTickerItem>> response = httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
         });
 
-        if (r == null || r.code() != 0 || r.data() == null) {
-            throw new ExchangeException("BingX tickers error: " + (r != null ? r.msg() : "null"));
+        if (response == null || response.code() != 0 || response.data() == null) {
+            throw new ExchangeException("BingX tickers error: " + (response != null ? response.msg() : "null"));
         }
 
-        Map<String, BingxTickerItem> bySymbol = r.data().stream()
-                .collect(Collectors.toMap(BingxTickerItem::symbol, Function.identity(), (a, b) -> a));
+        Map<String, BingxTickerItem> bySymbol = response.data().stream().collect(Collectors.toMap(BingxTickerItem::symbol, Function.identity(), (a, b) -> a));
 
-        long ts = System.currentTimeMillis();
         return instruments.stream()
-                .map(i -> {
-                    BingxTickerItem t = bySymbol.get(ensureSymbol(i));
-                    return t == null ? null : toTicker(i, t, ts);
-                })
-                .filter(Objects::nonNull)
+                .map(instrument -> toTicker(instrument, bySymbol.get(ensureSymbol(instrument))))
                 .toList();
     }
 
     @Override
-    public FundingRateData getFundingRate(InstrumentData inst) {
+    public FundingRateData getFundingRate(InstrumentData instrument) {
         String url = config.getBaseUrl() + "/openApi/swap/v2/quote/premiumIndex";
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .build();
-
-        BingxResponse<List<BingxPremiumIndexItem>> r = sendRequest(req, new TypeReference<>() {
+        BingxResponse<List<BingxPremiumIndexItem>> response = httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
         });
 
-        if (r == null || r.code() != 0 || r.data() == null) {
-            throw new ExchangeException("BingX premiumIndex error: " + (r != null ? r.msg() : "null"));
+        if (response == null || response.code() != 0 || response.data() == null) {
+            throw new ExchangeException("BingX premiumIndex error: " + (response != null ? response.msg() : "null"));
         }
 
-        String symbol = ensureSymbol(inst);
-        Map<String, BingxPremiumIndexItem> bySymbol = r.data().stream()
-                .collect(Collectors.toMap(BingxPremiumIndexItem::symbol, Function.identity(), (a, b) -> a));
+        String symbol = ensureSymbol(instrument);
+        Map<String, BingxPremiumIndexItem> bySymbol = response.data().stream().collect(Collectors.toMap(BingxPremiumIndexItem::symbol, Function.identity(), (a, b) -> a));
 
-        BingxPremiumIndexItem pi = bySymbol.get(symbol);
-        if (pi == null) throw new ExchangeException("No premiumIndex for " + symbol);
-
-        return toFunding(inst, pi);
+        return toFunding(instrument, bySymbol.get(symbol));
     }
 
     @Override
     public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
         String url = config.getBaseUrl() + "/openApi/swap/v2/quote/premiumIndex";
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .build();
-
-        BingxResponse<List<BingxPremiumIndexItem>> r = sendRequest(req, new TypeReference<>() {
+        BingxResponse<List<BingxPremiumIndexItem>> response = httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
         });
 
-        if (r == null || r.code() != 0 || r.data() == null) {
-            throw new ExchangeException("BingX premiumIndex error: " + (r != null ? r.msg() : "null"));
+        if (response == null || response.code() != 0 || response.data() == null) {
+            throw new ExchangeException("BingX premiumIndex error: " + (response != null ? response.msg() : "null"));
         }
 
-        Map<String, InstrumentData> requested = instruments.stream()
-                .collect(Collectors.toMap(this::ensureSymbol, Function.identity(), (a, b) -> a));
+        Map<String, InstrumentData> requested = instruments.stream().collect(Collectors.toMap(this::ensureSymbol, Function.identity(), (a, b) -> a));
 
-        return r.data().stream()
-                .filter(pi -> requested.containsKey(pi.symbol()))
-                .map(pi -> toFunding(requested.get(pi.symbol()), pi))
+        return response.data().stream()
+                .filter(index -> requested.containsKey(index.symbol()))
+                .map(index -> toFunding(requested.get(index.symbol()), index))
                 .toList();
     }
 
@@ -167,30 +122,40 @@ public class BingxExchangeClient extends AbstractExchangeClient<BingxConfig> {
         return config.isEnabled();
     }
 
-    private String ensureSymbol(InstrumentData inst) {
-        return inst.nativeSymbol() != null ? inst.nativeSymbol()
-                : inst.baseAsset() + "-" + inst.quoteAsset();
+    private String ensureSymbol(InstrumentData instrument) {
+        return instrument.nativeSymbol() != null ?
+                instrument.nativeSymbol() :
+                instrument.baseAsset() + "-" + instrument.quoteAsset();
     }
 
-    private TickerData toTicker(InstrumentData i, BingxTickerItem t, long ts) {
-        return new TickerData(
-                i,
-                bd(t.lastPrice()),
-                bd(t.bestBid()),
-                bd(t.bestAsk()),
-                bd(t.high24h()),
-                bd(t.low24h()),
-                bd(t.volume24h()),
-                ts
+    private InstrumentData toInstrument(BingxContractItem contract) {
+        return new InstrumentData(
+                contract.asset(),
+                contract.currency(),
+                InstrumentType.PERPETUAL,
+                contract.symbol(),
+                getExchangeType()
         );
     }
 
-    private FundingRateData toFunding(InstrumentData i, BingxPremiumIndexItem pi) {
+    private TickerData toTicker(InstrumentData instrument, BingxTickerItem ticker) {
+        return new TickerData(
+                instrument,
+                toBigDecimal(ticker.lastPrice()),
+                toBigDecimal(ticker.bestBid()),
+                toBigDecimal(ticker.bestAsk()),
+                toBigDecimal(ticker.high24h()),
+                toBigDecimal(ticker.low24h()),
+                toBigDecimal(ticker.volume24h())
+        );
+    }
+
+    private FundingRateData toFunding(InstrumentData instrument, BingxPremiumIndexItem index) {
         return new FundingRateData(
                 getExchangeType(),
-                i,
-                bd(pi.lastFundingRate()),
-                pi.nextFundingTime()
+                instrument,
+                toBigDecimal(index.lastFundingRate()),
+                index.nextFundingTime()
         );
     }
 }

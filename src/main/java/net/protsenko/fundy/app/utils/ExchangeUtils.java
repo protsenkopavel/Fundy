@@ -10,7 +10,7 @@ public final class ExchangeUtils {
         return s == null || s.isBlank();
     }
 
-    public static BigDecimal bd(String s) {
+    public static BigDecimal toBigDecimal(String s) {
         if (blank(s)) return BigDecimal.ZERO;
         try {
             return new BigDecimal(s);
@@ -19,7 +19,7 @@ public final class ExchangeUtils {
         }
     }
 
-    public static long l(String s) {
+    public static long toLong(String s) {
         if (blank(s)) return 0L;
         try {
             return Long.parseLong(s);

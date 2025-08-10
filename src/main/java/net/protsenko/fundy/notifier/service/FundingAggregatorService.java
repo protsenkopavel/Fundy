@@ -25,7 +25,8 @@ public class FundingAggregatorService {
                 if (!c.isEnabled()) {
                     res.put(t, List.of());
                 } else {
-                    res.put(t, c.getFundingRates());
+                    // TODO
+                    res.put(t, c.getFundingRates(List.of()));
                 }
             } catch (Exception e) {
                 res.put(t, List.of());

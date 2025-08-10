@@ -9,8 +9,7 @@ public record TickerData(
         BigDecimal ask,
         BigDecimal high24h,
         BigDecimal low24h,
-        BigDecimal volume24h,
-        long timestamp
+        BigDecimal volume24h
 ) {
 }
 
