@@ -23,12 +23,12 @@ public class MarketDataService {
 
     public List<InstrumentData> getAvailableInstruments(ExchangeType type) {
         ExchangeClient client = client(type);
-        return client.getAvailableInstruments();
+        return client.getInstruments();
     }
 
     public List<InstrumentData> getAvailableInstruments(InstrumentsRequest req) {
         return req.effectiveExchanges().parallelStream()
-                .flatMap(ex -> client(ex).getAvailableInstruments().stream())
+                .flatMap(ex -> client(ex).getInstruments().stream())
                 .toList();
     }
 
@@ -41,7 +41,7 @@ public class MarketDataService {
                             ? req.pairs().stream()
                             .map(p -> resolver.resolve(ex, p.base(), p.quote()))
                             .toList()
-                            : c.getAvailableInstruments();
+                            : c.getInstruments();
 
                     return c.getTickers(target).stream();
                 })

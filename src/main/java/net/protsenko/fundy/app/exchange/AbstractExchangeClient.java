@@ -6,10 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.rs.InstrumentData;
-import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
-import org.springframework.cache.annotation.Cacheable;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
@@ -17,7 +14,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
-import java.util.List;
 import java.util.Objects;
 
 @Slf4j
@@ -48,24 +44,6 @@ public abstract class AbstractExchangeClient<T extends ExchangeConfig> implement
                 .registerModule(new JavaTimeModule())
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     }
-
-    @Override
-    public Boolean isEnabled() {
-        return config.isEnabled();
-    }
-
-    @Override
-    @Cacheable(cacheNames = "exchange-instruments",
-            key = "#root.target.exchangeType",
-            cacheManager = "caffeineCacheManager")
-    public List<InstrumentData> getAvailableInstruments() {
-        return fetchAvailableInstruments();
-    }
-
-    protected abstract List<InstrumentData> fetchAvailableInstruments();
-
-    @Override
-    public abstract TickerData getTicker(InstrumentData instrument);
 
     protected <R> R sendRequest(HttpRequest request, Class<R> responseType) {
         HttpResponse<String> resp = send(request);

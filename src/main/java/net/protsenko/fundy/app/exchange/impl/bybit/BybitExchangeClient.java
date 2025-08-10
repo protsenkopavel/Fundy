@@ -1,6 +1,6 @@
 package net.protsenko.fundy.app.exchange.impl.bybit;
 
-import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.net.http.HttpRequest;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,19 +24,12 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.l;
 @Component
 public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
 
-    private volatile Map<String, InstrumentData> symbolIndex;
-
     public BybitExchangeClient(BybitConfig config) {
         super(config);
     }
 
     @Override
-    public ExchangeType getExchangeType() {
-        return ExchangeType.BYBIT;
-    }
-
-    @Override
-    protected List<InstrumentData> fetchAvailableInstruments() {
+    public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/v5/market/instruments-info?category=linear";
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -50,20 +42,16 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
             throw new ExchangeException("Bybit instruments error: " + (response != null ? response.retMsg() : "null response"));
         }
 
-        List<InstrumentData> res = new ArrayList<>();
-        for (BybitInstrumentItem item : response.result().list()) {
-            if (!"Trading".equalsIgnoreCase(item.status())) continue;
-            res.add(new InstrumentData(
-                    item.baseCoin(),
-                    item.quoteCoin(),
-                    InstrumentType.PERPETUAL,
-                    item.symbol(),
-                    getExchangeType()
-            ));
-        }
-        this.symbolIndex = res.stream()
-                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-        return res;
+        return response.result().list().stream()
+                .filter(item -> !"Trading".equalsIgnoreCase(item.status()))
+                .map(i -> new InstrumentData(
+                        i.baseCoin(),
+                        i.quoteCoin(),
+                        InstrumentType.PERPETUAL,
+                        i.symbol(),
+                        getExchangeType()
+                ))
+                .toList();
     }
 
     @Override
@@ -129,23 +117,7 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
                 .toList();
     }
 
-    public List<FundingRateData> getAllFundingRates() {
-        String url = config.getBaseUrl() + "/v5/market/tickers?category=linear";
-        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
-
-        BybitTickerResponse resp = sendRequest(req, BybitTickerResponse.class);
-        if (resp == null || resp.retCode() != 0 || resp.result() == null) {
-            throw new ExchangeException("Bybit tickers error: " + (resp != null ? resp.retMsg() : "null response"));
-        }
-
-        Map<String, InstrumentData> dict = symbolIndex();
-
-        return resp.result().list().stream()
-                .map(item -> mapFunding(item, dict))
-                .filter(Objects::nonNull)
-                .toList();
-    }
-
+    @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = instrument.nativeSymbol() != null ? instrument.nativeSymbol()
                 : instrument.baseAsset() + instrument.quoteAsset();
@@ -159,7 +131,7 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
                     (resp != null ? resp.retMsg() : "null response"));
         }
 
-        BybitTickerItem i = resp.result().list().get(0);
+        BybitTickerItem i = resp.result().list().getFirst();
         return new FundingRateData(
                 getExchangeType(),
                 instrument,
@@ -168,24 +140,42 @@ public class BybitExchangeClient extends AbstractExchangeClient<BybitConfig> {
         );
     }
 
-    private Map<String, InstrumentData> symbolIndex() {
-        Map<String, InstrumentData> local = symbolIndex;
-        if (local == null) {
-            local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-            symbolIndex = local;
+    @Override
+    public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
+        String url = config.getBaseUrl() + "/v5/market/tickers?category=linear";
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+
+        BybitTickerResponse resp = sendRequest(req, BybitTickerResponse.class);
+        if (resp == null || resp.retCode() != 0 || resp.result() == null) {
+            throw new ExchangeException("Bybit tickers error: " + (resp != null ? resp.retMsg() : "null response"));
         }
-        return local;
+
+        Map<String, InstrumentData> requested = instruments.stream()
+                .collect(Collectors.toMap(this::ensureSymbol, Function.identity(), (a, b) -> a));
+
+        return resp.result().list().stream()
+                .filter(item -> requested.containsKey(item.symbol()))
+                .map(item -> new FundingRateData(
+                        getExchangeType(),
+                        requested.get(item.symbol()),
+                        bd(item.fundingRate()),
+                        l(item.nextFundingTime())
+                ))
+                .toList();
     }
 
-    private FundingRateData mapFunding(BybitTickerItem item, Map<String, InstrumentData> dict) {
-        InstrumentData inst = dict.get(item.symbol());
-        if (inst == null) return null;
-        return new FundingRateData(
-                getExchangeType(),
-                inst,
-                bd(item.fundingRate()),
-                l(item.nextFundingTime())
-        );
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.BYBIT;
+    }
+
+    @Override
+    public Boolean isEnabled() {
+        return config.isEnabled();
+    }
+
+    private String ensureSymbol(InstrumentData instrument) {
+        if (instrument.nativeSymbol() != null) return instrument.nativeSymbol();
+        return instrument.baseAsset() + instrument.quoteAsset();
     }
 }

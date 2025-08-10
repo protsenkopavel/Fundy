@@ -1,9 +1,9 @@
 package net.protsenko.fundy.app.exchange.impl.coinex;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
-import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
@@ -25,31 +25,12 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
 @Component
 public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
 
-    private volatile Map<String, InstrumentData> symbolIndex;
-    private volatile Map<String, CoinexContractItem> contractMeta;
-
     public CoinexExchangeClient(CoinexConfig config) {
         super(config);
     }
 
-    private long calcNextFundingMs(long fundingTimeField) {
-        long now = System.currentTimeMillis();
-        if (fundingTimeField <= 0) return now;
-
-        long millis = fundingTimeField < 3600
-                ? fundingTimeField * 60_000L
-                : fundingTimeField * 1000L;
-
-        return now + millis;
-    }
-
     @Override
-    public ExchangeType getExchangeType() {
-        return ExchangeType.COINEX;
-    }
-
-    @Override
-    protected List<InstrumentData> fetchAvailableInstruments() {
+    public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/perpetual/v1/market/list";
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -57,49 +38,18 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
                 .GET()
                 .build();
 
-        CoinexResponse<List<CoinexContractItem>> resp =
-                sendRequest(req, new TypeReference<>() {
-                });
+        CoinexResponse<List<CoinexContractItem>> resp = sendRequest(req, new TypeReference<>() {
+        });
 
         if (resp == null || resp.code() != 0 || resp.data() == null) {
             throw new ExchangeException("CoinEx instruments error: " + (resp != null ? resp.message() : "null"));
         }
 
-        List<CoinexContractItem> list = resp.data();
-
-        List<InstrumentData> instruments = list.stream()
+        return resp.data().stream()
                 .filter(CoinexContractItem::available)
                 .filter(i -> i.type() == 1)
                 .map(this::toInstrument)
                 .toList();
-
-        symbolIndex = instruments.stream()
-                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-
-        contractMeta = list.stream()
-                .collect(Collectors.toUnmodifiableMap(CoinexContractItem::name, Function.identity()));
-
-        return instruments;
-    }
-
-    private InstrumentData toInstrument(CoinexContractItem c) {
-        return new InstrumentData(
-                c.stock(),
-                c.money(),
-                InstrumentType.PERPETUAL,
-                c.name(),
-                getExchangeType()
-        );
-    }
-
-    private Map<String, InstrumentData> symbolIndex() {
-        Map<String, InstrumentData> local = symbolIndex;
-        if (local == null) {
-            local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-            symbolIndex = local;
-        }
-        return local;
     }
 
     @Override
@@ -137,8 +87,22 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
 
     @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
-        Map<String, CoinexTickerItem> all = tickerAllMap();
-        Map<String, InstrumentData> dict = symbolIndex();
+        String urlAll = config.getBaseUrl() + "/perpetual/v1/market/ticker/all";
+        HttpRequest reqAll = HttpRequest.newBuilder()
+                .uri(URI.create(urlAll))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        CoinexResponse<CoinexTickerAllData> respAll =
+                sendRequest(reqAll, new TypeReference<>() {
+                });
+
+        if (respAll == null || respAll.code() != 0 || respAll.data() == null || respAll.data().ticker() == null) {
+            throw new ExchangeException("CoinEx ticker/all error: " + (respAll != null ? respAll.message() : "null"));
+        }
+
+        Map<String, CoinexTickerItem> all = respAll.data().ticker();
         long now = System.currentTimeMillis();
 
         return instruments.stream()
@@ -162,8 +126,22 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
 
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
+        String urlAll = config.getBaseUrl() + "/perpetual/v1/market/ticker/all";
+        HttpRequest reqAll = HttpRequest.newBuilder()
+                .uri(URI.create(urlAll))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        CoinexResponse<CoinexTickerAllData> respAll = sendRequest(reqAll, new TypeReference<>() {
+        });
+
+        if (respAll == null || respAll.code() != 0 || respAll.data() == null || respAll.data().ticker() == null) {
+            throw new ExchangeException("CoinEx ticker/all error: " + (respAll != null ? respAll.message() : "null"));
+        }
+
         String symbol = ensureSymbol(instrument);
-        CoinexTickerItem t = tickerAllMap().get(symbol);
+        CoinexTickerItem t = respAll.data().ticker().get(symbol);
         if (t == null) {
             throw new ExchangeException("CoinEx funding: ticker not found for " + symbol);
         }
@@ -180,14 +158,30 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
     }
 
     @Override
-    public List<FundingRateData> getAllFundingRates() {
-        Map<String, CoinexTickerItem> map = tickerAllMap();
-        Map<String, InstrumentData> dict = symbolIndex();
+    public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
+        String urlAll = config.getBaseUrl() + "/perpetual/v1/market/ticker/all";
+        HttpRequest reqAll = HttpRequest.newBuilder()
+                .uri(URI.create(urlAll))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
 
-        return map.entrySet().stream()
+        CoinexResponse<CoinexTickerAllData> respAll = sendRequest(reqAll, new TypeReference<>() {
+        });
+
+        if (respAll == null || respAll.code() != 0 || respAll.data() == null || respAll.data().ticker() == null) {
+            throw new ExchangeException("CoinEx ticker/all error: " + (respAll != null ? respAll.message() : "null"));
+        }
+
+        Map<String, CoinexTickerItem> all = respAll.data().ticker();
+
+        Map<String, InstrumentData> requested = instruments.stream()
+                .collect(Collectors.toMap(this::ensureSymbol, Function.identity(), (a, b) -> a));
+
+        return all.entrySet().stream()
+                .filter(e -> requested.containsKey(e.getKey()))
                 .map(e -> {
-                    InstrumentData inst = dict.get(e.getKey());
-                    if (inst == null) return null;
+                    InstrumentData inst = requested.get(e.getKey());
                     CoinexTickerItem t = e.getValue();
                     return new FundingRateData(
                             getExchangeType(),
@@ -196,30 +190,42 @@ public class CoinexExchangeClient extends AbstractExchangeClient<CoinexConfig> {
                             calcNextFundingMs(t.fundingTime())
                     );
                 })
-                .filter(Objects::nonNull)
                 .toList();
+    }
+
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.COINEX;
+    }
+
+    @Override
+    public Boolean isEnabled() {
+        return config.isEnabled();
+    }
+
+    private long calcNextFundingMs(long fundingTimeField) {
+        long now = System.currentTimeMillis();
+        if (fundingTimeField <= 0) return now;
+
+        long millis = fundingTimeField < 3600
+                ? fundingTimeField * 60_000L
+                : fundingTimeField * 1000L;
+
+        return now + millis;
+    }
+
+    private InstrumentData toInstrument(CoinexContractItem c) {
+        return new InstrumentData(
+                c.stock(),
+                c.money(),
+                InstrumentType.PERPETUAL,
+                c.name(),
+                getExchangeType()
+        );
     }
 
     private String ensureSymbol(InstrumentData inst) {
         return inst.nativeSymbol() != null ? inst.nativeSymbol()
                 : inst.baseAsset().toUpperCase() + inst.quoteAsset().toUpperCase();
-    }
-
-    private Map<String, CoinexTickerItem> tickerAllMap() {
-        String url = config.getBaseUrl() + "/perpetual/v1/market/ticker/all";
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(config.getTimeout()))
-                .GET()
-                .build();
-
-        CoinexResponse<CoinexTickerAllData> resp =
-                sendRequest(req, new TypeReference<>() {
-                });
-
-        if (resp == null || resp.code() != 0 || resp.data() == null || resp.data().ticker() == null) {
-            throw new ExchangeException("CoinEx ticker/all error: " + (resp != null ? resp.message() : "null"));
-        }
-        return resp.data().ticker();
     }
 }

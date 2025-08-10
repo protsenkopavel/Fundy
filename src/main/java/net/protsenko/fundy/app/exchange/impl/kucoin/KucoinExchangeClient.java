@@ -1,25 +1,22 @@
 package net.protsenko.fundy.app.exchange.impl.kucoin;
 
-import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.net.http.HttpRequest;
+import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
 
@@ -28,31 +25,27 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
 
     private static final int KUCOIN_PARALLEL = 16;
     private static final int RETRIES = 2;
-    private final ExecutorService kuPool =
-            Executors.newFixedThreadPool(KUCOIN_PARALLEL);
-    private volatile Map<String, InstrumentData> symbolIndex;
-    private volatile Map<String, KucoinContractItem> rawContractIndex;
+    private final ExecutorService kuPool = Executors.newFixedThreadPool(KUCOIN_PARALLEL);
 
     public KucoinExchangeClient(KucoinConfig config) {
         super(config);
     }
 
     @Override
-    public ExchangeType getExchangeType() {
-        return ExchangeType.KUCOIN;
-    }
-
-    @Override
-    protected List<InstrumentData> fetchAvailableInstruments() {
+    public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/api/v1/contracts/active";
-        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
 
         KucoinContractsResponse resp = sendRequest(req, KucoinContractsResponse.class);
         if (resp == null || resp.data() == null || resp.data().isEmpty()) {
             throw new ExchangeException("KuCoin returned empty contracts list");
         }
 
-        List<InstrumentData> list = resp.data().stream()
+        return resp.data().stream()
                 .filter(i -> "Open".equalsIgnoreCase(i.status()))
                 .map(i -> new InstrumentData(
                         i.baseCurrency(),
@@ -62,33 +55,42 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
                         getExchangeType()
                 ))
                 .toList();
-
-        this.symbolIndex = list.stream()
-                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-
-        this.rawContractIndex = resp.data().stream()
-                .collect(Collectors.toUnmodifiableMap(KucoinContractItem::symbol, Function.identity()));
-
-        return list;
     }
 
     @Override
     public TickerData getTicker(InstrumentData instrument) {
-        String symbol = instrument.nativeSymbol();
-        if (symbol == null) {
-            symbol = instrument.baseAsset() + instrument.quoteAsset() + "M";
+        String symbol = ensureSymbol(instrument);
+
+        String urlTicker = config.getBaseUrl() + "/api/v1/ticker?symbol=" + symbol;
+        HttpRequest reqTicker = HttpRequest.newBuilder()
+                .uri(URI.create(urlTicker))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        KucoinTickerResponse tr = sendRequest(reqTicker, KucoinTickerResponse.class);
+        if (tr == null || !"200000".equals(tr.code()) || tr.data() == null) {
+            throw new ExchangeException("KuCoin ticker error: " + (tr != null ? tr.code() : "null"));
         }
 
-        String url = config.getBaseUrl() + "/api/v1/ticker?symbol=" + symbol;
-        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+        String urlContracts = config.getBaseUrl() + "/api/v1/contracts/active";
+        HttpRequest reqContracts = HttpRequest.newBuilder()
+                .uri(URI.create(urlContracts))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
 
-        KucoinTickerResponse resp = sendRequest(req, KucoinTickerResponse.class);
-        if (resp == null || !"200000".equals(resp.code()) || resp.data() == null) {
-            throw new ExchangeException("KuCoin ticker error: " + (resp != null ? resp.code() : "null"));
+        KucoinContractsResponse cr = sendRequest(reqContracts, KucoinContractsResponse.class);
+        if (cr == null || cr.data() == null) {
+            throw new ExchangeException("KuCoin contracts fetch error: null");
         }
 
-        KucoinTickerData td = resp.data();
-        KucoinContractItem c = contract(symbol);
+        KucoinContractItem c = cr.data().stream()
+                .filter(it -> symbol.equalsIgnoreCase(it.symbol()))
+                .findFirst()
+                .orElseThrow(() -> new ExchangeException("KuCoin contract not found: " + symbol));
+
+        KucoinTickerData td = tr.data();
 
         return new TickerData(
                 instrument,
@@ -103,9 +105,6 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
     }
 
     @Override
-    @Cacheable(cacheNames = "exchange-tickers",
-            key = "'KUCOIN'",
-            cacheManager = "caffeineCacheManager")
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
         return instruments.stream()
                 .map(inst -> CompletableFuture.supplyAsync(() -> fetchWithRetry(inst), kuPool))
@@ -114,25 +113,27 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
                 .toList();
     }
 
-    private TickerData fetchWithRetry(InstrumentData inst) {
-        for (int i = 0; i <= RETRIES; i++) {
-            try {
-                return getTicker(inst);
-            } catch (Exception ex) {
-                if (i == RETRIES || !ex.getMessage().contains("too many concurrent"))
-                    return null;
-                try {
-                    Thread.sleep(200L);
-                } catch (InterruptedException ignored) {
-                }
-            }
-        }
-        return null;
-    }
-
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
-        KucoinContractItem c = contract(instrument.nativeSymbol());
+        String symbol = ensureSymbol(instrument);
+
+        String url = config.getBaseUrl() + "/api/v1/contracts/active";
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        KucoinContractsResponse resp = sendRequest(req, KucoinContractsResponse.class);
+        if (resp == null || resp.data() == null) {
+            throw new ExchangeException("KuCoin contracts fetch error: null");
+        }
+
+        KucoinContractItem c = resp.data().stream()
+                .filter(it -> symbol.equalsIgnoreCase(it.symbol()))
+                .findFirst()
+                .orElseThrow(() -> new ExchangeException("KuCoin contract not found: " + symbol));
+
         return new FundingRateData(
                 getExchangeType(),
                 instrument,
@@ -142,40 +143,63 @@ public class KucoinExchangeClient extends AbstractExchangeClient<KucoinConfig> {
     }
 
     @Override
-    public List<FundingRateData> getAllFundingRates() {
-        Map<String, InstrumentData> dict = symbolIndex();
-        return rawContractIndex().values().stream()
+    public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
+        String url = config.getBaseUrl() + "/api/v1/contracts/active";
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        KucoinContractsResponse resp = sendRequest(req, KucoinContractsResponse.class);
+        if (resp == null || resp.data() == null) {
+            throw new ExchangeException("Contracts fetch error: null response");
+        }
+
+        var requested = instruments.stream()
+                .collect(java.util.stream.Collectors.toMap(this::ensureSymbol, java.util.function.Function.identity(), (a, b) -> a));
+
+        return resp.data().stream()
                 .filter(c -> "Open".equalsIgnoreCase(c.status()))
+                .filter(c -> requested.containsKey(c.symbol()))
                 .map(c -> new FundingRateData(
                         getExchangeType(),
-                        dict.get(c.symbol()),
+                        requested.get(c.symbol()),
                         bd(c.fundingFeeRate()),
                         c.nextFundingRateDateTime()
                 ))
                 .toList();
     }
 
-    private KucoinContractItem contract(String symbol) {
-        KucoinContractItem c = rawContractIndex().get(symbol);
-        if (c == null) throw new ExchangeException("KuCoin contract not found: " + symbol);
-        return c;
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.KUCOIN;
     }
 
-    private Map<String, InstrumentData> symbolIndex() {
-        Map<String, InstrumentData> local = symbolIndex;
-        if (local == null) {
-            fetchAvailableInstruments();
-            local = symbolIndex;
-        }
-        return local;
+    @Override
+    public Boolean isEnabled() {
+        return config.isEnabled();
     }
 
-    private Map<String, KucoinContractItem> rawContractIndex() {
-        Map<String, KucoinContractItem> local = rawContractIndex;
-        if (local == null) {
-            fetchAvailableInstruments();
-            local = rawContractIndex;
+    private TickerData fetchWithRetry(InstrumentData inst) {
+        for (int i = 0; i <= RETRIES; i++) {
+            try {
+                return getTicker(inst);
+            } catch (Exception ex) {
+                if (i == RETRIES || (ex.getMessage() != null && !ex.getMessage().contains("too many concurrent"))) {
+                    return null;
+                }
+                try {
+                    Thread.sleep(200L);
+                } catch (InterruptedException ignored) {
+                }
+            }
         }
-        return local;
+        return null;
+    }
+
+    private String ensureSymbol(InstrumentData instrument) {
+        if (instrument.nativeSymbol() != null) return instrument.nativeSymbol();
+        return instrument.baseAsset() + instrument.quoteAsset() + "M";
     }
 }

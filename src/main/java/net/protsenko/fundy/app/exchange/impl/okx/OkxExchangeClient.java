@@ -1,14 +1,13 @@
 package net.protsenko.fundy.app.exchange.impl.okx;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.AbstractExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -33,19 +32,12 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
     private static final int MAX_PARALLEL = 48;
     private final ExecutorService pool = Executors.newFixedThreadPool(MAX_PARALLEL);
 
-    private volatile Map<String, InstrumentData> symbolIndex;
-
     public OkxExchangeClient(OkxConfig config) {
         super(config);
     }
 
     @Override
-    public ExchangeType getExchangeType() {
-        return ExchangeType.OKX;
-    }
-
-    @Override
-    protected List<InstrumentData> fetchAvailableInstruments() {
+    public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/api/v5/public/instruments?instType=SWAP";
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -60,33 +52,10 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
             throw new ExchangeException("OKX instruments error: " + (resp != null ? resp.msg() : "null"));
         }
 
-        List<InstrumentData> list = resp.data().stream()
+        return resp.data().stream()
                 .filter(i -> "SWAP".equalsIgnoreCase(i.instType()) && "live".equalsIgnoreCase(i.state()))
                 .map(this::toInstrumentData)
                 .toList();
-
-        symbolIndex = list.stream()
-                .filter(i -> i.nativeSymbol() != null && !i.nativeSymbol().isBlank())
-                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-
-        return list;
-    }
-
-    private InstrumentData toInstrumentData(OkxInstrumentItem it) {
-        String[] parts = it.instId().split("-");
-        String base = parts.length > 0 ? parts[0] : "";
-        String quote = parts.length > 1 ? parts[1] : "";
-        return new InstrumentData(
-                base,
-                quote,
-                InstrumentType.PERPETUAL,
-                it.instId(),
-                getExchangeType()
-        );
-    }
-
-    private String ensureSymbol(InstrumentData inst) {
-        return inst.nativeSymbol() != null ? inst.nativeSymbol() : inst.baseAsset() + "-" + inst.quoteAsset() + "-SWAP";
     }
 
     @Override
@@ -166,7 +135,6 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
     }
 
     @Override
-    @Cacheable(cacheNames = "okx-funding", key = "#instrument.nativeSymbol()", cacheManager = "caffeineCacheManager")
     public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
         String url = config.getBaseUrl() + "/api/v5/public/funding-rate?instId=" + symbol;
@@ -184,7 +152,7 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
             throw new ExchangeException("OKX funding error: " + (resp != null ? resp.msg() : "null"));
         }
 
-        OkxFundingItem f = resp.data().get(0);
+        OkxFundingItem f = resp.data().getFirst();
         BigDecimal rate = bd(f.fundingRate());
         long next = l(f.nextFundingTime());
 
@@ -197,11 +165,7 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
     }
 
     @Override
-    public List<FundingRateData> getAllFundingRates() {
-        List<InstrumentData> instruments = getAvailableInstruments().stream()
-                .filter(i -> i.nativeSymbol().endsWith("-USDT-SWAP"))
-                .toList();
-
+    public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
         List<CompletableFuture<FundingRateData>> futures = instruments.stream()
                 .map(inst -> CompletableFuture.supplyAsync(() -> {
                     try {
@@ -216,5 +180,32 @@ public class OkxExchangeClient extends AbstractExchangeClient<OkxConfig> {
                 .map(CompletableFuture::join)
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.OKX;
+    }
+
+    @Override
+    public Boolean isEnabled() {
+        return config.isEnabled();
+    }
+
+    private InstrumentData toInstrumentData(OkxInstrumentItem it) {
+        String[] parts = it.instId().split("-");
+        String base = parts.length > 0 ? parts[0] : "";
+        String quote = parts.length > 1 ? parts[1] : "";
+        return new InstrumentData(
+                base,
+                quote,
+                InstrumentType.PERPETUAL,
+                it.instId(),
+                getExchangeType()
+        );
+    }
+
+    private String ensureSymbol(InstrumentData inst) {
+        return inst.nativeSymbol() != null ? inst.nativeSymbol() : inst.baseAsset() + "-" + inst.quoteAsset() + "-SWAP";
     }
 }

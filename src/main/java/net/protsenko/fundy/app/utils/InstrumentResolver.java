@@ -12,7 +12,7 @@ public class InstrumentResolver {
     private final ExchangeClientFactory factory;
 
     public InstrumentData resolve(ExchangeType ex, String base, String quote) {
-        return factory.getClient(ex).getAvailableInstruments().stream()
+        return factory.getClient(ex).getInstruments().stream()
                 .filter(i -> i.baseAsset().equalsIgnoreCase(base) && i.quoteAsset().equalsIgnoreCase(quote))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Инструмент не найден: " + base + "/" + quote));

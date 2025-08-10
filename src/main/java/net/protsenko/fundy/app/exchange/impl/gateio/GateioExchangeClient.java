@@ -2,7 +2,7 @@ package net.protsenko.fundy.app.exchange.impl.gateio;
 
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
@@ -26,20 +26,12 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
 @Component
 public class GateioExchangeClient extends AbstractExchangeClient<GateioConfig> {
 
-    private volatile Map<String, InstrumentData> symbolIndex;
-    private volatile Map<String, GateioContractItem> contractMeta;
-
     public GateioExchangeClient(GateioConfig config) {
         super(config);
     }
 
     @Override
-    public ExchangeType getExchangeType() {
-        return ExchangeType.GATEIO;
-    }
-
-    @Override
-    protected List<InstrumentData> fetchAvailableInstruments() {
+    public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/api/v4/futures/" + config.getSettle() + "/contracts";
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -54,57 +46,10 @@ public class GateioExchangeClient extends AbstractExchangeClient<GateioConfig> {
             throw new ExchangeException("GateIO contracts: null response");
         }
 
-        List<InstrumentData> result = list.stream()
+        return list.stream()
                 .filter(c -> "trading".equalsIgnoreCase(c.status()))
                 .map(this::toInstrument)
                 .toList();
-
-        symbolIndex = result.stream()
-                .filter(i -> i.nativeSymbol() != null && !i.nativeSymbol().isBlank())
-                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-
-        contractMeta = list.stream()
-                .collect(Collectors.toUnmodifiableMap(GateioContractItem::name, Function.identity()));
-
-        return result;
-    }
-
-    private InstrumentData toInstrument(GateioContractItem c) {
-        String nativeSymbol = c.name();
-        String[] parts = nativeSymbol.split("_");
-        String base = parts.length > 0 ? parts[0] : "";
-        String quote = parts.length > 1 ? parts[1] : config.getSettle().toUpperCase();
-        return new InstrumentData(
-                base,
-                quote,
-                InstrumentType.PERPETUAL,
-                nativeSymbol,
-                getExchangeType()
-        );
-    }
-
-    private Map<String, InstrumentData> symbolIndex() {
-        Map<String, InstrumentData> local = symbolIndex;
-        if (local == null) {
-            local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-            symbolIndex = local;
-        }
-        return local;
-    }
-
-    private Map<String, GateioContractItem> contractMeta() {
-        Map<String, GateioContractItem> local = contractMeta;
-        if (local == null) {
-            fetchAvailableInstruments();
-            local = contractMeta;
-        }
-        return local;
-    }
-
-    private String ensureSymbol(InstrumentData inst) {
-        return inst.nativeSymbol() != null ? inst.nativeSymbol()
-                : inst.baseAsset() + "_" + inst.quoteAsset();
     }
 
     @Override
@@ -174,38 +119,83 @@ public class GateioExchangeClient extends AbstractExchangeClient<GateioConfig> {
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
         String symbol = ensureSymbol(instrument);
-        GateioContractItem meta = contractMeta().get(symbol);
-        if (meta == null) throw new ExchangeException("No contract meta for " + symbol);
 
-        BigDecimal rate = bd(meta.fundingRate());
-        long nextMs = meta.fundingNextApply() * 1000L;
+        String url = config.getBaseUrl() + "/api/v4/futures/" + config.getSettle() + "/contracts";
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
+
+        List<GateioContractItem> list = sendRequest(req, new TypeReference<>() {});
+        if (list == null) throw new ExchangeException("GateIO contracts: null response");
+
+        GateioContractItem meta = list.stream()
+                .filter(c -> symbol.equalsIgnoreCase(c.name()))
+                .findFirst()
+                .orElseThrow(() -> new ExchangeException("No contract meta for " + symbol));
 
         return new FundingRateData(
                 getExchangeType(),
                 instrument,
-                rate,
-                nextMs
+                bd(meta.fundingRate()),
+                meta.fundingNextApply() * 1000L
         );
     }
 
     @Override
-    public List<FundingRateData> getAllFundingRates() {
-        Map<String, GateioContractItem> meta = contractMeta();
-        Map<String, InstrumentData> dict = symbolIndex();
+    public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
+        String url = config.getBaseUrl() + "/api/v4/futures/" + config.getSettle() + "/contracts";
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(config.getTimeout()))
+                .GET()
+                .build();
 
-        return meta.values().stream()
+        List<GateioContractItem> list = sendRequest(req, new TypeReference<>() {});
+        if (list == null) throw new ExchangeException("GateIO contracts: null response");
+
+        Map<String, InstrumentData> requested = instruments.stream()
+                .collect(Collectors.toMap(this::ensureSymbol, Function.identity(), (a, b) -> a));
+
+        return list.stream()
                 .filter(c -> "trading".equalsIgnoreCase(c.status()))
-                .map(c -> {
-                    InstrumentData inst = dict.get(c.name());
-                    if (inst == null) return null;
-                    return new FundingRateData(
-                            getExchangeType(),
-                            inst,
-                            bd(c.fundingRate()),
-                            c.fundingNextApply() * 1000L
-                    );
-                })
-                .filter(Objects::nonNull)
+                .filter(c -> requested.containsKey(c.name()))
+                .map(c -> new FundingRateData(
+                        getExchangeType(),
+                        requested.get(c.name()),
+                        bd(c.fundingRate()),
+                        c.fundingNextApply() * 1000L
+                ))
                 .toList();
+    }
+
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.GATEIO;
+    }
+
+    private InstrumentData toInstrument(GateioContractItem c) {
+        String nativeSymbol = c.name();
+        String[] parts = nativeSymbol.split("_");
+        String base = parts.length > 0 ? parts[0] : "";
+        String quote = parts.length > 1 ? parts[1] : config.getSettle().toUpperCase();
+        return new InstrumentData(
+                base,
+                quote,
+                InstrumentType.PERPETUAL,
+                nativeSymbol,
+                getExchangeType()
+        );
+    }
+
+    @Override
+    public Boolean isEnabled() {
+        return config.isEnabled();
+    }
+
+    private String ensureSymbol(InstrumentData inst) {
+        return inst.nativeSymbol() != null ? inst.nativeSymbol()
+                : inst.baseAsset() + "_" + inst.quoteAsset();
     }
 }

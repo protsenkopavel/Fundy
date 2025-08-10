@@ -55,14 +55,14 @@ public class ArbitrageScannerService {
         try {
             ExchangeClient client = factory.getClient(ex);
 
-            Map<String, FundingRateData> fundBySymbol = client.getAllFundingRates().stream()
+            Map<String, FundingRateData> fundBySymbol = client.getFundingRates().stream()
                     .collect(Collectors.toMap(
                             fr -> key(fr.instrument()),
                             fr -> fr,
                             (a, b) -> a
                     ));
 
-            List<InstrumentData> instruments = client.getAvailableInstruments().stream()
+            List<InstrumentData> instruments = client.getInstruments().stream()
                     .filter(i -> i.type() == InstrumentType.PERPETUAL)
                     .toList();
             if (instruments.isEmpty()) return Stream.empty();

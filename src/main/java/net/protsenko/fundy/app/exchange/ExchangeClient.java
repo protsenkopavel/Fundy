@@ -7,11 +7,7 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import java.util.List;
 
 public interface ExchangeClient {
-    ExchangeType getExchangeType();
-
-    Boolean isEnabled();
-
-    List<InstrumentData> getAvailableInstruments();
+    List<InstrumentData> getInstruments();
 
     TickerData getTicker(InstrumentData instrument);
 
@@ -19,5 +15,9 @@ public interface ExchangeClient {
 
     FundingRateData getFundingRate(InstrumentData instrument);
 
-    List<FundingRateData> getAllFundingRates();
+    List<FundingRateData> getFundingRates(List<InstrumentData> instruments);
+
+    ExchangeType getExchangeType();
+
+    Boolean isEnabled();
 }

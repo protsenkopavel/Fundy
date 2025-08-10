@@ -1,6 +1,6 @@
 package net.protsenko.fundy.app.exchange.impl.mexc;
 
-import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
@@ -17,24 +17,18 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static net.protsenko.fundy.app.utils.ExchangeUtils.*;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.bd;
+import static net.protsenko.fundy.app.utils.ExchangeUtils.l;
 
 @Component
 public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
-
-    private volatile Map<String, InstrumentData> symbolIndex;
 
     public MexcExchangeClient(MexcConfig config) {
         super(config);
     }
 
     @Override
-    public ExchangeType getExchangeType() {
-        return ExchangeType.MEXC;
-    }
-
-    @Override
-    protected List<InstrumentData> fetchAvailableInstruments() {
+    public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/api/v1/contract/detail";
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
 
@@ -43,7 +37,7 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
             throw new ExchangeException("MEXC instruments error: " + (resp != null ? resp.msg() : "null response"));
         }
 
-        List<InstrumentData> list = resp.data().stream()
+        return resp.data().stream()
                 .filter(i -> i.state() == 0)
                 .map(i -> new InstrumentData(
                         i.baseCoin(),
@@ -53,16 +47,11 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
                         getExchangeType()
                 ))
                 .toList();
-
-        symbolIndex = list.stream()
-                .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-
-        return list;
     }
 
     @Override
     public TickerData getTicker(InstrumentData instrument) {
-        String symbol = symbol(instrument);
+        String symbol = ensureSymbol(instrument);
         String url = config.getBaseUrl() + "/api/v1/contract/ticker?symbol=" + symbol;
 
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
@@ -103,7 +92,7 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
 
         return instruments.stream()
                 .map(inst -> {
-                    MexcTickerItem t = bySymbol.get(symbol(inst));
+                    MexcTickerItem t = bySymbol.get(ensureSymbol(inst));
                     if (t == null) return null;
                     return new TickerData(
                             inst,
@@ -122,7 +111,7 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
 
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
-        String symbol = symbol(instrument);
+        String symbol = ensureSymbol(instrument);
         String url = config.getBaseUrl() + "/api/v1/contract/funding_rate?symbol=" + symbol;
 
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
@@ -147,44 +136,42 @@ public class MexcExchangeClient extends AbstractExchangeClient<MexcConfig> {
     }
 
     @Override
-    public List<FundingRateData> getAllFundingRates() {
+    public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
         String url = config.getBaseUrl() + "/api/v1/contract/funding_rate";
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
 
         MexcFundingListResponse resp = sendRequest(req, MexcFundingListResponse.class);
         if (resp != null && resp.code() == 0 && resp.data() != null && !resp.data().isEmpty()) {
-            Map<String, InstrumentData> dict = symbolIndex();
+            Map<String, InstrumentData> requested = instruments.stream()
+                    .collect(Collectors.toMap(this::ensureSymbol, Function.identity(), (a, b) -> a));
+
             return resp.data().stream()
-                    .map(item -> {
-                        InstrumentData inst = dict.get(item.symbol());
-                        if (inst == null) return null;
-                        return new FundingRateData(
-                                getExchangeType(),
-                                inst,
-                                bd(item.fundingRate()),
-                                l(item.fundingTime())
-                        );
-                    })
-                    .filter(Objects::nonNull)
+                    .filter(item -> requested.containsKey(item.symbol()))
+                    .map(item -> new FundingRateData(
+                            getExchangeType(),
+                            requested.get(item.symbol()),
+                            bd(item.fundingRate()),
+                            l(item.fundingTime())
+                    ))
                     .toList();
         }
 
-        return getAvailableInstruments().stream()
+        return instruments.stream()
                 .map(this::getFundingRate)
                 .toList();
     }
 
-    private Map<String, InstrumentData> symbolIndex() {
-        Map<String, InstrumentData> local = symbolIndex;
-        if (local == null) {
-            local = getAvailableInstruments().stream()
-                    .collect(Collectors.toUnmodifiableMap(InstrumentData::nativeSymbol, Function.identity()));
-            symbolIndex = local;
-        }
-        return local;
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.MEXC;
     }
 
-    private String symbol(InstrumentData instrument) {
+    @Override
+    public Boolean isEnabled() {
+        return config.isEnabled();
+    }
+
+    private String ensureSymbol(InstrumentData instrument) {
         return instrument.nativeSymbol() != null
                 ? instrument.nativeSymbol()
                 : instrument.baseAsset() + "_" + instrument.quoteAsset();

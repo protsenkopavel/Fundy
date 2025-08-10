@@ -37,7 +37,7 @@ public class FundingScannerService {
                                                      BigDecimal minFr,
                                                      ZoneId zone) {
         try {
-            return factory.getClient(ex).getAllFundingRates().stream()
+            return factory.getClient(ex).getFundingRates().stream()
                     .filter(fr -> fr.fundingRate().abs().compareTo(minFr) >= 0)
                     .map(fr -> {
                         LocalDateTime utcLocalTime =
