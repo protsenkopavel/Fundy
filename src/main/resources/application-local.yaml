@@ -1,22 +1,22 @@
 spring:
   application:
     name: Fundy
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT_INTERNAL}/${DB_NAME}
-    password: ${POSTGRES_PASSWORD}
-    username: ${POSTGRES_USER}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: none
-    show-sql: true
-  liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
-    drop-first: false
-    enabled: true
-    parameters:
-      ADMIN_CHAT_ID: ${ADMIN_CHAT_ID:0}
+#  datasource:
+#    driver-class-name: org.postgresql.Driver
+#    url: jdbc:postgresql://${DB_HOST}:${DB_PORT_INTERNAL}/${DB_NAME}
+#    password: ${POSTGRES_PASSWORD}
+#    username: ${POSTGRES_USER}
+#  jpa:
+#    open-in-view: false
+#    hibernate:
+#      ddl-auto: none
+#    show-sql: true
+#  liquibase:
+#    change-log: classpath:db/changelog/db.changelog-master.yaml
+#    drop-first: false
+#    enabled: true
+#    parameters:
+#      ADMIN_CHAT_ID: ${ADMIN_CHAT_ID:0}
   cache:
     type: caffeine
 

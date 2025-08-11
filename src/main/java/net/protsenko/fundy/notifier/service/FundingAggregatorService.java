@@ -1,7 +1,7 @@
 package net.protsenko.fundy.notifier.service;
 
 import lombok.RequiredArgsConstructor;
-import net.protsenko.fundy.app.dto.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -25,7 +25,8 @@ public class FundingAggregatorService {
                 if (!c.isEnabled()) {
                     res.put(t, List.of());
                 } else {
-                    res.put(t, c.getAllFundingRates());
+                    // TODO
+                    res.put(t, c.getFundingRates(List.of()));
                 }
             } catch (Exception e) {
                 res.put(t, List.of());

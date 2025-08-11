@@ -2,15 +2,20 @@ package net.protsenko.fundy.app.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.FundingRateData;
-import net.protsenko.fundy.app.dto.FundingRateEx;
+import net.protsenko.fundy.app.dto.InstrumentType;
+import net.protsenko.fundy.app.dto.rq.FundingFilterRequest;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.Arrays;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
@@ -19,52 +24,49 @@ import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 public class FundingScannerService {
-
     private final ExchangeClientFactory factory;
 
-    public List<FundingRateData> findHighFundingRates(
-            ExchangeType type, double minRateAbs) {
-        ExchangeClient client = factory.getClient(type);
-        return scan(client, minRateAbs);
-    }
+    public List<FundingRateData> getFundingOpportunities(FundingFilterRequest req) {
+        ZoneId zone = req.zone();
+        BigDecimal minFr = req.minFr();
 
-    public List<FundingRateEx> findHighFundingRatesAll(double minRateAbs) {
-
-        BigDecimal threshold = BigDecimal.valueOf(Math.abs(minRateAbs));
-
-        return Arrays.stream(ExchangeType.values())
-                .parallel()
-                .flatMap(type -> {
-                    try {
-                        ExchangeClient c = factory.getClient(type);
-                        return c.getAllFundingRates().stream()
-                                .filter(fr -> fr.fundingRate().abs()
-                                        .compareTo(threshold) >= 0)
-                                .map(fr -> new FundingRateEx(type, fr));
-                    } catch (Exception e) {
-                        log.warn("Skip {}: {}", type, e.getMessage());
-                        return Stream.empty();
-                    }
-                })
-                .sorted(Comparator.comparing(
-                                (FundingRateEx x) -> x.data()
-                                        .fundingRate()
-                                        .abs())
-                        .reversed())
+        return req.effectiveExchanges().parallelStream()
+                .flatMap(ex -> loadExchangeData(ex, minFr, zone))
+                .sorted(Comparator.comparing((FundingRateData r) -> r.fundingRate().abs()).reversed())
                 .toList();
     }
 
-    private List<FundingRateData> scan(
-            ExchangeClient client, double minRateAbs) {
+    private Stream<FundingRateData> loadExchangeData(ExchangeType ex, BigDecimal minFr, ZoneId zone) {
+        try {
+            ExchangeClient client = factory.getClient(ex);
 
-        BigDecimal th = BigDecimal.valueOf(Math.abs(minRateAbs));
-        List<FundingRateData> all = client.getAllFundingRates();
+            List<InstrumentData> instruments = client.getInstruments().stream()
+                    .filter(i -> i.type() == InstrumentType.PERPETUAL)
+                    .toList();
 
-        return all.stream()
-                .filter(fr -> fr.fundingRate().abs().compareTo(th) >= 0)
-                .sorted(Comparator.comparing(
-                                (FundingRateData fr) -> fr.fundingRate().abs())
-                        .reversed())
-                .toList();
+            return client.getFundingRates(instruments).stream()
+                    .filter(fr -> fr.fundingRate().abs().compareTo(minFr) >= 0)
+                    .map(fr -> {
+                        LocalDateTime utcLocalTime =
+                                Instant.ofEpochMilli(fr.nextFundingTs())
+                                        .atZone(ZoneOffset.UTC)
+                                        .toLocalDateTime();
+
+                        long nextFundingLocalTs =
+                                utcLocalTime.atZone(zone)
+                                        .toInstant()
+                                        .toEpochMilli();
+
+                        return new FundingRateData(
+                                ex,
+                                fr.instrument(),
+                                fr.fundingRate(),
+                                nextFundingLocalTs
+                        );
+                    });
+        } catch (Exception e) {
+            log.warn("Skip {}: {}", ex, e.getMessage());
+            return Stream.empty();
+        }
     }
 }

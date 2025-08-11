@@ -1,7 +1,7 @@
 package net.protsenko.fundy.notifier.util;
 
-
-import net.protsenko.fundy.app.dto.TradingInstrument;
+import net.protsenko.fundy.app.dto.InstrumentType;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 
 public final class ExchangeLinkResolver {
@@ -9,7 +9,7 @@ public final class ExchangeLinkResolver {
     private ExchangeLinkResolver() {
     }
 
-    public static String link(ExchangeType ex, TradingInstrument inst) {
+    public static String link(ExchangeType ex, InstrumentData inst) {
         String base = inst.baseAsset().toUpperCase();
         String quote = inst.quoteAsset().toUpperCase();
 
@@ -24,5 +24,28 @@ public final class ExchangeLinkResolver {
             case COINEX -> "https://www.coinex.com/futures/" + base + "-" + quote;
             case BINGX -> "https://bingx.com/perpetual/" + base + "-" + quote;
         };
+    }
+
+    public static String link(ExchangeType ex, String symbol) {
+        String base;
+        String quote;
+        if (symbol == null || symbol.isBlank()) {
+            base = "";
+            quote = "";
+        } else if (symbol.contains("-")) {
+            String[] parts = symbol.split("-", 2);
+            base = parts[0];
+            quote = parts[1];
+        } else if (symbol.matches("^[A-Za-z]+[A-Za-z]+$")) {
+            int len = symbol.length();
+            int half = len / 2;
+            base = symbol.substring(0, half);
+            quote = symbol.substring(half);
+        } else {
+            base = symbol;
+            quote = "";
+        }
+        InstrumentData inst = new InstrumentData(base, quote, InstrumentType.PERPETUAL, symbol, ex);
+        return link(ex, inst);
     }
 }
