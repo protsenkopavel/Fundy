@@ -17,6 +17,7 @@ services:
 #    networks: [ app-net ]
 
   fundy:
+    image: ${IMAGE_REGISTRY_PREFIX:-ghcr.io/protsenkopavel}/fundy:latest
     build:
       context: .
     ports:
@@ -37,6 +38,20 @@ services:
 #
 #volumes:
 #  fundy-db-data:
+
+  fundy-frontend:
+    image: ${IMAGE_REGISTRY_PREFIX:-ghcr.io/protsenkopavel}/fundy-frontend:latest
+    build:
+      context: ./fundy-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT_EXTERNAL:-3000}:80"
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - fundy
+    networks: [ app-net ]
 
 networks:
   app-net:

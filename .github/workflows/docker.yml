@@ -18,10 +18,25 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - uses: docker/build-push-action@v5
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
         with:
+          context: .
+          file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/fundy:latest
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/fundy:latest
+            ghcr.io/${{ github.repository_owner }}/fundy:${{ github.sha }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./fundy-frontend
+          file: ./fundy-frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/fundy-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/fundy-frontend:${{ github.sha }}
 
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.0

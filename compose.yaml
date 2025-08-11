@@ -38,6 +38,19 @@ services:
 #volumes:
 #  fundy-db-data:
 
+  fundy-frontend:
+    build:
+      context: ./fundy-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT_EXTERNAL:-3000}:80"
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - fundy
+    networks: [ app-net ]
+
 networks:
   app-net:
     driver: bridge
