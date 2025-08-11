@@ -8,8 +8,6 @@ import net.protsenko.fundy.notifier.dto.FundingAlertSettings;
 import net.protsenko.fundy.notifier.dto.SnapshotRefreshedEvent;
 import net.protsenko.fundy.notifier.repo.UserSettingsRepo;
 import net.protsenko.fundy.notifier.service.FundingSnapshotCache;
-import net.protsenko.fundy.notifier.service.RegistrationService;
-import net.protsenko.fundy.notifier.service.TokenService;
 import net.protsenko.fundy.notifier.util.FundingMessageFormatter;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,12 +45,7 @@ public class FundingBot extends TelegramLongPollingBot {
     private static final Pattern DURATION_RE =
             Pattern.compile("(?i)^\\s*(?:(\\d+)\\s*h)?\\s*(?:(\\d+)\\s*m)?\\s*$");
 
-    private static final Pattern UUID_RE =
-            Pattern.compile(
-                    "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-                    Pattern.CASE_INSENSITIVE);
-
-    /* ---------- DI‑поля ---------- */
+    /* ---------- DI-поля ---------- */
 
     private final String username;
     private final String token;
@@ -61,9 +54,6 @@ public class FundingBot extends TelegramLongPollingBot {
     private final FundingSnapshotCache cache;
     private final Executor previewExecutor;
     private final PreviewRegistry previewRegistry;
-    private final AccessGuard accessGuard;
-    private final TokenService tokenService;
-    private final RegistrationService registrationService;
 
     /* ---------- Конструктор ---------- */
 
@@ -74,10 +64,7 @@ public class FundingBot extends TelegramLongPollingBot {
             BotStateStore stateStore,
             FundingSnapshotCache cache,
             Executor previewExecutor,
-            PreviewRegistry previewRegistry,
-            AccessGuard accessGuard,
-            TokenService tokenService,
-            RegistrationService registrationService
+            PreviewRegistry previewRegistry
     ) {
         this.username = username;
         this.token = token;
@@ -86,12 +73,9 @@ public class FundingBot extends TelegramLongPollingBot {
         this.cache = cache;
         this.previewExecutor = previewExecutor;
         this.previewRegistry = previewRegistry;
-        this.accessGuard = accessGuard;
-        this.tokenService = tokenService;
-        this.registrationService = registrationService;
     }
 
-    /* ---------- Life‑cycle ---------- */
+    /* ---------- Life-cycle ---------- */
 
     @PostConstruct
     void init() {
@@ -100,7 +84,7 @@ public class FundingBot extends TelegramLongPollingBot {
     }
 
     /**
-     * Регистрируем список slash‑команд (виден в UI Telegram).
+     * Регистрируем список slash-команд (виден в UI Telegram).
      */
     @PostConstruct
     void registerCommands() {
@@ -110,7 +94,7 @@ public class FundingBot extends TelegramLongPollingBot {
                 new BotCommand("top", "Показать топ фандингов сейчас"),
                 new BotCommand("min", "Мин. ставка (%)"),
                 new BotCommand("before", "Время до начисления"),
-                new BotCommand("timeZone", "Часовой пояс"),
+                new BotCommand("timezone", "Часовой пояс"),
                 new BotCommand("exchanges", "Выбор бирж"),
                 new BotCommand("help", "Справка"),
                 new BotCommand("stop", "Остановить уведомления"),
@@ -142,18 +126,6 @@ public class FundingBot extends TelegramLongPollingBot {
         MDC.put("chatId", String.valueOf(chatId));
         MDC.put("updateType", update.hasCallbackQuery() ? "callback" : "message");
 
-        boolean registerCmd = isRegistrationCommand(update);
-        boolean rawUuidToken = looksLikeUuidToken(update);
-
-        boolean startReg = isStartWithReg(update);
-
-        if (chatId != 0 && !accessGuard.allowed(chatId)
-                && !(registerCmd || rawUuidToken || startReg)) {
-            send(chatId, "⛔️ Доступ запрещён.\n" +
-                    "Пришлите регистрационный токен одной строкой\n", null);
-            return;
-        }
-
         try {
             if (update.hasCallbackQuery()) {
                 handleCallback(update);
@@ -167,7 +139,7 @@ public class FundingBot extends TelegramLongPollingBot {
         }
     }
 
-    /* ---------- Helpers: Update‑разбор ---------- */
+    /* ---------- Helpers: Update-разбор ---------- */
 
     private long extractChatId(Update upd) {
         if (upd.hasCallbackQuery()) return upd.getCallbackQuery().getMessage().getChatId();
@@ -175,32 +147,13 @@ public class FundingBot extends TelegramLongPollingBot {
         return 0;
     }
 
-    private boolean isRegistrationCommand(Update upd) {
-        return upd.hasMessage()
-                && upd.getMessage().hasText()
-                && upd.getMessage().getText().trim()
-                .toLowerCase(Locale.ROOT)
-                .startsWith("/register");
-    }
-
-    private boolean looksLikeUuidToken(Update upd) {
-        return upd.hasMessage()
-                && upd.getMessage().hasText()
-                && UUID_RE.matcher(upd.getMessage().getText().trim()).matches();
-    }
-
     /* =======================================================================
-       TEXT‑команды
+       TEXT-команды
        ======================================================================= */
 
     private void handleText(Update upd) {
         long chatId = upd.getMessage().getChatId();
         String text = upd.getMessage().getText().trim();
-
-        if (!accessGuard.allowed(chatId) && UUID_RE.matcher(text).matches()) {
-            handleRegister(chatId, text);
-            return;
-        }
 
         /* --- разбор команды ------------------------------------------------ */
 
@@ -222,13 +175,11 @@ public class FundingBot extends TelegramLongPollingBot {
             case "/top" -> previewAsync(chatId);
             case "/min" -> handleSlashMin(chatId, args);
             case "/before" -> handleSlashBefore(chatId, args);
-            case "/timeZone" -> handleSlashTz(chatId, args);
+            case "/timezone" -> handleSlashTz(chatId, args);
             case "/exchanges" -> showExchangeToggles(chatId, null);
             case "/help" -> send(chatId, helpText(), null);
             case "/stop" -> send(chatId, "Ок, не буду слать уведомления. (/start чтобы включить)", null);
             case "/ping" -> send(chatId, "pong", null);
-            case "/register" -> handleRegister(chatId, args);
-            case "/newtoken" -> handleNewToken(chatId, args);
             case "/bucket" -> handleSlashBucket(chatId, args);
             default -> send(chatId, "Команда не распознана. Попробуй /help", null);
         }
@@ -274,53 +225,11 @@ public class FundingBot extends TelegramLongPollingBot {
     /* ---------- /start ---------- */
 
     private void handleStart(long chatId, String args) {
-        if (args.startsWith("reg_")) {
-            String raw = args.substring(4).trim();
-            if (Objects.requireNonNull(registrationService.register(chatId, raw)) == RegistrationService.Result.OK) {
-                send(chatId, "Регистрация успешна!", null);
-                sendMenuNew(chatId);
-            } else {
-                send(chatId, "Токен неверен или просрочен.", null);
-            }
-            return;
-        }
         repo.save(repo.getOrDefault(chatId));
         sendMenuNew(chatId);
     }
 
-    private boolean isStartWithReg(Update upd) {
-        return upd.hasMessage()
-                && upd.getMessage().hasText()
-                && upd.getMessage().getText().trim().toLowerCase(Locale.ROOT)
-                .startsWith("/start reg_");
-    }
-
-    /* ---------- регистрация ---------- */
-
-    private void handleRegister(long chatId, String token) {
-        switch (registrationService.register(chatId, token)) {
-            case OK -> {
-                send(chatId, "✅ Регистрация успешна!", null);
-                sendMenuNew(chatId);
-            }
-            case NO_SUCH_TOKEN -> send(chatId, "⛔️ Неверный токен.", null);
-            case TOKEN_EXPIRED -> send(chatId, "⛔️ Токен просрочен или уже использован.", null);
-        }
-    }
-
-    /* ---------- генерация токена админом ---------- */
-
-    private void handleNewToken(long chatId, String args) {
-        if (!accessGuard.isAdmin(chatId)) {
-            send(chatId, "Команда доступна только администраторам.", null);
-            return;
-        }
-        Duration ttl = parseDurationSafe(args, Duration.ofHours(24));
-        String link = tokenService.createDeepLink(getBotUsername(), ttl);
-        send(chatId, "Ссылка на регистрацию (%d ч):\n".formatted(ttl.toHours()) + link, null);
-    }
-
-    /* ---------- /min, /before, /timeZone ---------- */
+    /* ---------- /min, /before, /timeZone, /bucket ---------- */
 
     private void handleSlashMin(long chatId, String args) {
         if (args.isBlank()) {
@@ -396,19 +305,19 @@ public class FundingBot extends TelegramLongPollingBot {
 
     private String helpText() {
         return """
-                Доступные команды:
-                /menu — меню настроек
-                /top — топ фандингов сейчас
-                /min <pct> — мин. ставка, % (например /min 0.7)
-                /before <30m|1h> — время до начисления начисления
-                /timeZone <ZoneId> — часовой пояс (Europe/Moscow)
-                /exchanges — выбрать биржи
-                /stop — перестать слать уведомления
-                """;
+            Доступные команды:
+            /menu — меню настроек
+            /top — топ фандингов сейчас
+            /min <pct> — мин. ставка, % (например /min 0.7)
+            /before <30m|1h> — время до начисления
+            /timezone <ZoneId> — часовой пояс (Europe/Moscow)   // <-- было /timeZone
+            /exchanges — выбрать биржи
+            /stop — перестать слать уведомления
+            """;
     }
 
     /* =======================================================================
-       CALLBACK‑query
+       CALLBACK-query
        ======================================================================= */
 
     private void handleCallback(Update upd) throws Exception {
@@ -435,27 +344,18 @@ public class FundingBot extends TelegramLongPollingBot {
                 edit(chatId, msgId, "Введи интервал, напр. 30m или 1h", null);
             }
             case "SET_TZ" -> showTzChoices(chatId, msgId);
-            case "PREVIEW" -> {
-                refreshPreview(chatId, msgId);
-            }
-            case "ADMIN_MENU" -> showAdminMenu(chatId, msgId);
-            case "ADMIN_NEW_TOKEN" -> {
-                String url = tokenService.createDeepLink(getBotUsername(), Duration.ofHours(24));
-                send(chatId, "Ссылка для регистрации (24 ч):\n" + url, null);
-            }
+            case "PREVIEW" -> refreshPreview(chatId, msgId);
             case "SET_BUCKET" -> {
                 stateStore.set(chatId, BotState.WAIT_BUCKET);
                 edit(chatId, msgId, "Введи частоту обновлений, напр. 30m или 1h", null);
             }
-            case "SHOW_REGISTER" -> edit(chatId, msgId, "Отправьте /register &lt;токен&gt;", null);
             default -> {
                 if (data.startsWith("TZ_")) {
                     ZoneId z = ZoneId.of(data.substring(3));
                     FundingAlertSettings s = repo.getOrDefault(chatId).withZone(z);
                     repo.save(s);
                     editMenu(chatId, msgId);
-                }
-                if (data.startsWith("EX_")) {
+                } else if (data.startsWith("EX_")) {
                     toggleExchange(chatId, data.substring(3));
                     showExchangeToggles(chatId, msgId);
                 }
@@ -463,18 +363,8 @@ public class FundingBot extends TelegramLongPollingBot {
         }
     }
 
-    /* ---------- Админ‑меню ---------- */
-
-    private void showAdminMenu(long chatId, Integer msgId) {
-        InlineKeyboardMarkup kb = new InlineKeyboardMarkup(List.of(
-                List.of(btn("Новый токен (24ч)", "ADMIN_NEW_TOKEN")),
-                List.of(btn("⬅️ Назад", "BACK_MENU"))
-        ));
-        edit(chatId, msgId, "Админ‑меню:", kb);
-    }
-
     /* =======================================================================
-       Preview‑блок
+       Preview-блок
        ======================================================================= */
 
     private InlineKeyboardMarkup previewKb() {
@@ -488,7 +378,7 @@ public class FundingBot extends TelegramLongPollingBot {
         try {
             pending = execute(SendMessage.builder()
                     .chatId(String.valueOf(chatId))
-                    .text("⏳ Загружаю топ‑фандинги…")
+                    .text("⏳ Загружаю топ-фандинги…")
                     .parseMode("HTML")
                     .disableWebPagePreview(true)
                     .replyMarkup(previewKb())
@@ -552,8 +442,8 @@ public class FundingBot extends TelegramLongPollingBot {
                             && e.getValue().nextFundingTs() > System.currentTimeMillis();
                 })
                 .sorted(Comparator.comparing(
-                        (Map.Entry<ExchangeType, FundingRateData> e)
-                                -> e.getValue().fundingRate().abs()).reversed())
+                        (Map.Entry<ExchangeType, FundingRateData> e1)
+                                -> e1.getValue().fundingRate().abs()).reversed())
                 .toList();
 
         String header = String.format("Текущие фандинги > %s%n%n",
@@ -575,12 +465,12 @@ public class FundingBot extends TelegramLongPollingBot {
 
     private void sendMenuNew(long chatId) {
         FundingAlertSettings s = repo.getOrDefault(chatId);
-        send(chatId, menuText(s), menuKb(chatId));
+        send(chatId, menuText(s), menuKb());
     }
 
     private void editMenu(long chatId, Integer msgId) {
         FundingAlertSettings s = repo.getOrDefault(chatId);
-        edit(chatId, msgId, menuText(s), menuKb(chatId));
+        edit(chatId, msgId, menuText(s), menuKb());
     }
 
     private String menuText(FundingAlertSettings s) {
@@ -605,7 +495,7 @@ public class FundingBot extends TelegramLongPollingBot {
         );
     }
 
-    private InlineKeyboardMarkup menuKb(long chatId) {
+    private InlineKeyboardMarkup menuKb() {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         rows.add(List.of(btn("📉 Мин. %", "SET_MIN")));
         rows.add(List.of(btn("🏦 Биржи", "SET_EXCH")));
@@ -613,8 +503,6 @@ public class FundingBot extends TelegramLongPollingBot {
         rows.add(List.of(btn("🌍 Timezone", "SET_TZ")));
         rows.add(List.of(btn("🗑️ Частота обновлений", "SET_BUCKET")));
         rows.add(List.of(btn("👀 Топ сейчас", "PREVIEW")));
-        if (accessGuard.isAdmin(chatId))
-            rows.add(List.of(btn("⚙️ Админ‑меню", "ADMIN_MENU")));
         return new InlineKeyboardMarkup(rows);
     }
 
@@ -727,7 +615,6 @@ public class FundingBot extends TelegramLongPollingBot {
             log.error("Unexpected error on TG {} for chat {}: ", op, chatId, e);
         }
     }
-
 
     private void reportUserError(long chatId, String msg) {
         SendMessage sm = SendMessage.builder()
