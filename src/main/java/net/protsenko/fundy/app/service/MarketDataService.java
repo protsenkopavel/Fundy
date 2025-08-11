@@ -2,6 +2,7 @@ package net.protsenko.fundy.app.service;
 
 import lombok.RequiredArgsConstructor;
 import net.protsenko.fundy.app.dto.rq.InstrumentsRequest;
+import net.protsenko.fundy.app.dto.rq.TickerRequest;
 import net.protsenko.fundy.app.dto.rq.TickersRequest;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
@@ -21,36 +22,39 @@ public class MarketDataService {
     private final ExchangeClientFactory factory;
     private final InstrumentResolver resolver;
 
-    public List<InstrumentData> getAvailableInstruments(ExchangeType type) {
-        ExchangeClient client = client(type);
-        return client.getInstruments();
-    }
-
-    public List<InstrumentData> getAvailableInstruments(InstrumentsRequest req) {
-        return req.effectiveExchanges().parallelStream()
-                .flatMap(ex -> client(ex).getInstruments().stream())
+    public List<InstrumentData> getAvailableInstruments(InstrumentsRequest instrumentsRequest) {
+        return instrumentsRequest.effectiveExchanges().parallelStream()
+                .flatMap(exchangeType -> client(exchangeType).getInstruments().stream())
                 .toList();
     }
 
-    public List<TickerData> getTickers(TickersRequest req) {
-        return req.effectiveExchanges().parallelStream()
-                .flatMap(ex -> {
-                    ExchangeClient c = client(ex);
-
-                    List<InstrumentData> target = req.hasPairs()
-                            ? req.pairs().stream()
-                            .map(p -> resolver.resolve(ex, p.base(), p.quote()))
-                            .toList()
-                            : c.getInstruments();
-
-                    return c.getTickers(target).stream();
+    public List<TickerData> getTicker(TickerRequest tickerRequest) {
+        return tickerRequest.effectiveExchanges().parallelStream()
+                .map(exchangeType -> {
+                    ExchangeClient exchangeClient = client(exchangeType);
+                    InstrumentData target = resolver.resolve(exchangeType, tickerRequest.pair().base(), tickerRequest.pair().quote());
+                    return exchangeClient.getTicker(target);
                 })
                 .toList();
     }
 
-    private ExchangeClient client(ExchangeType ex) {
-        ExchangeClient c = factory.getClient(ex);
-        if (!c.isEnabled()) throw new ExchangeException("Биржа отключена: " + ex);
+    public List<TickerData> getTickers(TickersRequest tickersRequest) {
+        return tickersRequest.effectiveExchanges().parallelStream()
+                .flatMap(exchangeType -> {
+                    ExchangeClient exchangeClient = client(exchangeType);
+                    List<InstrumentData> target = tickersRequest.hasPairs()
+                            ? tickersRequest.pairs().stream()
+                            .map(instrumentPair -> resolver.resolve(exchangeType, instrumentPair.base(), instrumentPair.quote()))
+                            .toList()
+                            : exchangeClient.getInstruments();
+                    return exchangeClient.getTickers(target).stream();
+                })
+                .toList();
+    }
+
+    private ExchangeClient client(ExchangeType exchangeType) {
+        ExchangeClient c = factory.getClient(exchangeType);
+        if (!c.isEnabled()) throw new ExchangeException("Биржа отключена: " + exchangeType);
         return c;
     }
 }

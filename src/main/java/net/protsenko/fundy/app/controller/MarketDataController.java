@@ -3,6 +3,7 @@ package net.protsenko.fundy.app.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import net.protsenko.fundy.app.dto.rq.InstrumentsRequest;
+import net.protsenko.fundy.app.dto.rq.TickerRequest;
 import net.protsenko.fundy.app.dto.rq.TickersRequest;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
@@ -31,9 +32,14 @@ public class MarketDataController {
         return service.getAvailableInstruments(req);
     }
 
+    @PostMapping("/ticker")
+    public List<TickerData> ticker(@Valid @RequestBody TickerRequest tickerRequest) {
+        return service.getTicker(tickerRequest);
+    }
+
     @PostMapping("/tickers")
-    public List<TickerData> tickers(@Valid @RequestBody TickersRequest req) {
-        return service.getTickers(req);
+    public List<TickerData> tickers(@Valid @RequestBody TickersRequest tickersRequest) {
+        return service.getTickers(tickersRequest);
     }
 
     @GetMapping("/exchanges")

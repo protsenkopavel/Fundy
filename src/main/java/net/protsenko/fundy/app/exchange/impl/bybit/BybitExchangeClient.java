@@ -41,7 +41,7 @@ public class BybitExchangeClient implements ExchangeClient {
         }
 
         return response.result().list().stream()
-                .filter(instrument -> !"Trading".equalsIgnoreCase(instrument.status()))
+                .filter(instrument -> "Trading".equalsIgnoreCase(instrument.status()))
                 .map(this::toInstrument)
                 .toList();
     }
