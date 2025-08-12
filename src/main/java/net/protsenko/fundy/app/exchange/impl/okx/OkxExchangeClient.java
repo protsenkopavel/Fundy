@@ -1,6 +1,5 @@
 package net.protsenko.fundy.app.exchange.impl.okx;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.InstrumentType;
@@ -11,8 +10,6 @@ import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
-import net.protsenko.fundy.app.props.OkxConfig;
-import net.protsenko.fundy.app.utils.HttpExecutor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -29,21 +26,12 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.toLong;
 @RequiredArgsConstructor
 public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
-    private final HttpExecutor httpExecutor;
-    private final OkxConfig config;
-    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
+    private final OkxCache cache;
+    private final ExecutorService executor = Executors.newFixedThreadPool(10);
 
     @Override
     public List<InstrumentData> getInstruments() {
-        String url = config.getBaseUrl() + "/api/v5/public/instruments?instType=SWAP";
-        OkxResponse<OkxInstrumentItem> resp =
-                httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
-                });
-
-        require(resp != null && "0".equals(resp.code()) && resp.data() != null,
-                () -> "OKX instruments error: " + (resp != null ? resp.msg() : "null"));
-
-        return resp.data().stream()
+        return cache.instruments().stream()
                 .filter(i -> "SWAP".equalsIgnoreCase(i.instType()))
                 .filter(i -> "live".equalsIgnoreCase(i.state()))
                 .map(i -> {
@@ -57,72 +45,24 @@ public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport
 
     @Override
     public TickerData getTicker(InstrumentData instrument) {
-        String url = config.getBaseUrl() + "/api/v5/market/tickers?instType=SWAP";
-        OkxResponse<OkxTickerItem> resp =
-                httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
-                });
-
-        require(resp != null && "0".equals(resp.code()) && resp.data() != null,
-                () -> "OKX all-tickers error: " + (resp != null ? resp.msg() : "null"));
-
-        Map<String, OkxTickerItem> byCanonical = indexByCanonical(resp.data(), OkxTickerItem::instId);
-
-        return mapTickersByCanonical(
-                List.of(instrument),
-                byCanonical,
-                (inst, t) -> ticker(
-                        inst,
-                        t.last(),
-                        t.bidPx(),
-                        t.askPx(),
-                        t.high24h(),
-                        t.low24h(),
-                        t.vol24h()
-                )
-        ).stream().findFirst().orElseThrow(() ->
-                new ExchangeException("[" + getExchangeType() + "] ticker not found for "
-                        + instrument.baseAsset() + "/" + instrument.quoteAsset()));
+        Map<String, OkxTickerItem> byCanonical = cache.tickers();
+        return mapTickersByCanonical(List.of(instrument), byCanonical,
+                (inst, t) -> ticker(inst, t.last(), t.bidPx(), t.askPx(), t.high24h(), t.low24h(), t.vol24h()))
+                .stream().findFirst().orElseThrow(() ->
+                        new ExchangeException("[" + getExchangeType() + "] ticker not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
-        String url = config.getBaseUrl() + "/api/v5/market/tickers?instType=SWAP";
-        OkxResponse<OkxTickerItem> resp =
-                httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
-                });
-
-        require(resp != null && "0".equals(resp.code()) && resp.data() != null,
-                () -> "OKX all-tickers error: " + (resp != null ? resp.msg() : "null"));
-
-        Map<String, OkxTickerItem> byCanonical = indexByCanonical(resp.data(), OkxTickerItem::instId);
-
-        return mapTickersByCanonical(
-                instruments,
-                byCanonical,
-                (inst, t) -> ticker(
-                        inst,
-                        t.last(),
-                        t.bidPx(),
-                        t.askPx(),
-                        t.high24h(),
-                        t.low24h(),
-                        t.vol24h()
-                )
-        );
+        Map<String, OkxTickerItem> byCanonical = cache.tickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.last(), t.bidPx(), t.askPx(), t.high24h(), t.low24h(), t.vol24h()));
     }
 
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
-        String instId = ensureSymbol(instrument, () -> instrument.baseAsset() + "-" + instrument.quoteAsset() + "-SWAP");
-        String url = config.getBaseUrl() + "/api/v5/public/funding-rate?instId=" + instId;
-        OkxResponse<OkxFundingItem> resp =
-                httpExecutor.get(url, config.getTimeout(), new TypeReference<>() {
-                });
-
-        require(resp != null && "0".equals(resp.code()) && resp.data() != null && !resp.data().isEmpty(),
-                () -> "OKX funding error for " + instId + ": " + (resp != null ? resp.msg() : "null"));
-
-        OkxFundingItem f = resp.data().getFirst();
+        String instId = ensureSymbol(instrument, instrument.baseAsset() + "-" + instrument.quoteAsset() + "-SWAP");
+        OkxFundingItem f = cache.fundingSingle(instId);
         return funding(instrument, f.fundingRate(), toLong(f.nextFundingTime()));
     }
 
@@ -131,18 +71,17 @@ public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport
         List<CompletableFuture<FundingRateData>> futures = instruments.stream()
                 .map(inst -> CompletableFuture.supplyAsync(() -> {
                     try {
-                        return getFundingRate(inst);
+                        String instId = ensureSymbol(inst, inst.baseAsset() + "-" + inst.quoteAsset() + "-SWAP");
+                        OkxFundingItem f = cache.fundingSingle(instId);
+                        return funding(inst, f.fundingRate(), toLong(f.nextFundingTime()));
                     } catch (Exception e) {
                         log.warn("[OKX] funding fetch failed for {}/{}", inst.baseAsset(), inst.quoteAsset(), e);
                         return null;
                     }
-                }, executorService))
+                }, executor))
                 .toList();
 
-        return futures.stream()
-                .map(CompletableFuture::join)
-                .filter(Objects::nonNull)
-                .toList();
+        return futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).toList();
     }
 
     @Override
@@ -152,6 +91,6 @@ public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport
 
     @Override
     public Boolean isEnabled() {
-        return config.isEnabled();
+        return true;
     }
 }

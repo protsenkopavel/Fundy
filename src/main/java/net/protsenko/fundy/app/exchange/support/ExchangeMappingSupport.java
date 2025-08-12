@@ -23,6 +23,10 @@ public interface ExchangeMappingSupport {
 
     ExchangeType getExchangeType();
 
+    default String ensureSymbol(InstrumentData instrument, String fallback) {
+        return ensureSymbol(instrument, () -> fallback);
+    }
+
     default String ensureSymbol(InstrumentData instrument, Supplier<String> fallback) {
         String s = instrument.nativeSymbol();
         return (s != null && !s.isBlank()) ? s : fallback.get();

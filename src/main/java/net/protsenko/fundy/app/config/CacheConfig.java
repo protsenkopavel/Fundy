@@ -1,27 +1,45 @@
 package net.protsenko.fundy.app.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.cache.caffeine.CaffeineCache;
+import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.time.Duration;
+import java.util.List;
 
 @Configuration
 @EnableCaching
+@EnableConfigurationProperties(ExchangeCacheProperties.class)
 public class CacheConfig {
+
     @Bean
-    public CacheManager caffeineCacheManager() {
-        CaffeineCacheManager cm = new CaffeineCacheManager(
-                "exchange-instruments",
-                "exchange-tickers"
-        );
-        cm.setCaffeine(Caffeine.newBuilder()
-                .expireAfterWrite(Duration.ofMinutes(10))
-                .maximumSize(10_000)
-                .recordStats());
-        return cm;
+    public CacheManager cacheManager(ExchangeCacheProperties p) {
+        SimpleCacheManager manager = new SimpleCacheManager();
+
+        Caffeine<Object, Object> instruments = Caffeine.newBuilder()
+                .expireAfterWrite(p.getInstrumentsTtl())
+                .maximumSize(p.getInstrumentsMaxSize())
+                .recordStats();
+
+        Caffeine<Object, Object> tickers = Caffeine.newBuilder()
+                .expireAfterWrite(p.getTickersTtl())
+                .maximumSize(p.getTickersMaxSize())
+                .recordStats();
+
+        Caffeine<Object, Object> funding = Caffeine.newBuilder()
+                .expireAfterWrite(p.getFundingTtl())
+                .maximumSize(p.getFundingMaxSize())
+                .recordStats();
+
+        manager.setCaches(List.of(
+                new CaffeineCache("ex-instruments", instruments.build()),
+                new CaffeineCache("ex-tickers", tickers.build()),
+                new CaffeineCache("ex-funding", funding.build())
+        ));
+        return manager;
     }
 }

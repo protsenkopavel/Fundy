@@ -19,6 +19,7 @@ spring:
 #      ADMIN_CHAT_ID: ${ADMIN_CHAT_ID:0}
   cache:
     type: caffeine
+    cache-names: ex-instruments, ex-tickers, ex-funding
 
 telegram.bot:
   username: ${TELEGRAM_USERNAME}
@@ -45,18 +46,26 @@ management:
         enabled: true
 
 fundy:
+  cache:
+    exchange:
+      instruments-ttl: 30m
+      instruments-max-size: 5000
+      tickers-ttl: 2s
+      tickers-max-size: 50000
+      funding-ttl: 90s
+      funding-max-size: 50000
   exchanges:
     bybit:
       api-key: ${BYBIT_API_KEY}
       secret-key: ${BYBIT_SECRET_KEY}
       base-url: https://api.bybit.com
-      timeout: 10
+      timeout: 30
       enabled: true
     mexc:
       api-key: ${MEXC_API_KEY}
       secret-key: ${MEXC_SECRET_KEY}
       base-url: https://contract.mexc.com
-      timeout: 10
+      timeout: 30
       enabled: true
     kucoin:
       api-key: ${KUCOIN_API_KEY}
@@ -75,7 +84,7 @@ fundy:
       api-key: ${BINGX_API_KEY}
       secret-key: ${BINGX_SECRET_KEY}
       base-url: https://open-api.bingx.com
-      timeout: 10
+      timeout: 30
       enabled: true
     okx:
       api-key: ${OKX_API_KEY}
@@ -88,19 +97,19 @@ fundy:
       secret-key: ${GATEIO_SECRET_KEY}
       base-url: https://api.gateio.ws
       settle: usdt
-      timeout: 10
+      timeout: 30
       enabled: true
     coinex:
       api-key: ${COINEX_API_KEY}
       secret-key: ${COINEX_SECRET_KEY}
       base-url: https://api.coinex.com
-      timeout: 10
+      timeout: 30
       enabled: true
     htx:
       api-key: ${HTX_API_KEY}
       secret-key: ${HTX_SECRET_KEY}
       base-url: https://api.hbdm.com
-      timeout: 10
+      timeout: 30
       enabled: true
   notifier:
     scan-delay: PT2M

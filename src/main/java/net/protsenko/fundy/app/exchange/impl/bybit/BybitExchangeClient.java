@@ -10,8 +10,6 @@ import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
-import net.protsenko.fundy.app.props.BybitConfig;
-import net.protsenko.fundy.app.utils.HttpExecutor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -25,114 +23,48 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.toLong;
 @RequiredArgsConstructor
 public class BybitExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
-    private final HttpExecutor httpExecutor;
-    private final BybitConfig config;
+    private final BybitCache cache;
 
     @Override
     public List<InstrumentData> getInstruments() {
-        String url = config.getBaseUrl() + "/v5/market/instruments-info?category=linear";
-        BybitInstrumentsResponse resp = httpExecutor.get(url, config.getTimeout(), BybitInstrumentsResponse.class);
-
-        require(resp != null && resp.retCode() == 0 && resp.result() != null,
-                () -> "Bybit instruments error: " + (resp != null ? resp.retMsg() : "null response"));
-
-        return resp.result().list().stream()
+        return cache.instruments().stream()
                 .filter(i -> "Trading".equalsIgnoreCase(i.status()))
-                .map(i -> instrument(
-                        i.baseCoin(),
-                        i.quoteCoin(),
-                        InstrumentType.PERPETUAL,
-                        i.symbol()
-                ))
+                .map(i -> instrument(i.baseCoin(), i.quoteCoin(), InstrumentType.PERPETUAL, i.symbol()))
                 .toList();
     }
 
     @Override
     public TickerData getTicker(InstrumentData instrument) {
-        String url = config.getBaseUrl() + "/v5/market/tickers?category=linear";
-        BybitTickerResponse resp = httpExecutor.get(url, config.getTimeout(), BybitTickerResponse.class);
-
-        require(resp != null && resp.retCode() == 0 && resp.result() != null,
-                () -> "Bybit tickers error: " + (resp != null ? resp.retMsg() : "null response"));
-
-        Map<String, BybitTickerItem> byCanonical = indexByCanonical(resp.result().list(), BybitTickerItem::symbol);
-
-        return mapTickersByCanonical(
-                List.of(instrument),
-                byCanonical,
-                (inst, t) -> ticker(
-                        inst,
-                        t.lastPrice(),
-                        t.bid1Price(),
-                        t.ask1Price(),
-                        t.highPrice24h(),
-                        t.lowPrice24h(),
-                        t.volume24h()
-                )
-        ).stream().findFirst().orElseThrow(() ->
-                new ExchangeException("[" + getExchangeType() + "] ticker not found for "
-                        + instrument.baseAsset() + "/" + instrument.quoteAsset()));
+        Map<String, BybitTickerItem> byCanonical = cache.tickers();
+        return mapTickersByCanonical(List.of(instrument), byCanonical,
+                (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
+                        t.highPrice24h(), t.lowPrice24h(), t.volume24h()))
+                .stream().findFirst().orElseThrow(() ->
+                        new ExchangeException("[" + getExchangeType() + "] ticker not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
-        String url = config.getBaseUrl() + "/v5/market/tickers?category=linear";
-        BybitTickerResponse resp = httpExecutor.get(url, config.getTimeout(), BybitTickerResponse.class);
-
-        require(resp != null && resp.retCode() == 0 && resp.result() != null,
-                () -> "Bybit tickers error: " + (resp != null ? resp.retMsg() : "null response"));
-
-        Map<String, BybitTickerItem> byCanonical = indexByCanonical(resp.result().list(), BybitTickerItem::symbol);
-
-        return mapTickersByCanonical(
-                instruments,
-                byCanonical,
-                (inst, t) -> ticker(
-                        inst,
-                        t.lastPrice(),
-                        t.bid1Price(),
-                        t.ask1Price(),
-                        t.highPrice24h(),
-                        t.lowPrice24h(),
-                        t.volume24h()
-                )
-        );
+        Map<String, BybitTickerItem> byCanonical = cache.tickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
+                        t.highPrice24h(), t.lowPrice24h(), t.volume24h()));
     }
 
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
-        String url = config.getBaseUrl() + "/v5/market/tickers?category=linear";
-        BybitTickerResponse resp = httpExecutor.get(url, config.getTimeout(), BybitTickerResponse.class);
-
-        require(resp != null && resp.retCode() == 0 && resp.result() != null,
-                () -> "Bybit funding error: " + (resp != null ? resp.retMsg() : "null response"));
-
-        Map<String, BybitTickerItem> byCanonical = indexByCanonical(resp.result().list(), BybitTickerItem::symbol);
-
-        return mapFundingByCanonical(
-                List.of(instrument),
-                byCanonical,
-                (inst, t) -> funding(inst, t.fundingRate(), toLong(t.nextFundingTime()))
-        ).stream().findFirst().orElseThrow(() ->
-                new ExchangeException("[" + getExchangeType() + "] funding not found for "
-                        + instrument.baseAsset() + "/" + instrument.quoteAsset()));
+        Map<String, BybitTickerItem> byCanonical = cache.tickers();
+        return mapFundingByCanonical(List.of(instrument), byCanonical,
+                (inst, t) -> funding(inst, t.fundingRate(), toLong(t.nextFundingTime())))
+                .stream().findFirst().orElseThrow(() ->
+                        new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override
     public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
-        String url = config.getBaseUrl() + "/v5/market/tickers?category=linear";
-        BybitTickerResponse resp = httpExecutor.get(url, config.getTimeout(), BybitTickerResponse.class);
-
-        require(resp != null && resp.retCode() == 0 && resp.result() != null,
-                () -> "Bybit funding error: " + (resp != null ? resp.retMsg() : "null response"));
-
-        Map<String, BybitTickerItem> byCanonical = indexByCanonical(resp.result().list(), BybitTickerItem::symbol);
-
-        return mapFundingByCanonical(
-                instruments,
-                byCanonical,
-                (inst, t) -> funding(inst, t.fundingRate(), toLong(t.nextFundingTime()))
-        );
+        Map<String, BybitTickerItem> byCanonical = cache.tickers();
+        return mapFundingByCanonical(instruments, byCanonical,
+                (inst, t) -> funding(inst, t.fundingRate(), toLong(t.nextFundingTime())));
     }
 
     @Override
@@ -142,6 +74,6 @@ public class BybitExchangeClient implements ExchangeClient, ExchangeMappingSuppo
 
     @Override
     public Boolean isEnabled() {
-        return config.isEnabled();
+        return true;
     }
 }
