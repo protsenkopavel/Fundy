@@ -1,6 +1,5 @@
 package net.protsenko.fundy.app.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.BucketEntry;
 import net.protsenko.fundy.app.dto.CanonicalInstrument;
@@ -10,33 +9,36 @@ import net.protsenko.fundy.app.dto.rs.ArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
-import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
-public class ArbitrageScannerService {
+public class ArbitrageScannerService extends BaseExchangeService {
     private static final MathContext MC = new MathContext(8, RoundingMode.HALF_UP);
-    private final ExchangeClientFactory factory;
+
+    public ArbitrageScannerService(ExchangeClientFactory factory) {
+        super(factory);
+    }
 
     public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest f) {
         BigDecimal minFr = f.minFr();
         BigDecimal minPr = f.minPr();
-        Set<ExchangeType> ex = f.effectiveExchanges();
 
-        Map<String, List<BucketEntry>> bySymbol = ex.parallelStream()
-                .flatMap(this::loadExchangeData)
+        Map<String, List<BucketEntry>> bySymbol = across(f.effectiveExchanges(), this::loadExchangeData)
                 .collect(Collectors.groupingByConcurrent(BucketEntry::symbol));
 
         return bySymbol.entrySet().parallelStream()
@@ -48,10 +50,8 @@ public class ArbitrageScannerService {
                 .toList();
     }
 
-    private Stream<BucketEntry> loadExchangeData(ExchangeType ex) {
+    private Stream<BucketEntry> loadExchangeData(ExchangeClient client) {
         try {
-            ExchangeClient client = client(ex);
-
             List<InstrumentData> instruments = client.getInstruments().stream()
                     .filter(i -> i.type() == InstrumentType.PERPETUAL)
                     .toList();
@@ -69,27 +69,27 @@ public class ArbitrageScannerService {
 
             return tickers.stream()
                     .map(tk -> {
-                        String symbol = net.protsenko.fundy.app.utils.SymbolNormalizer.canonicalKey(tk.instrument());
+                        String symbol = SymbolNormalizer.canonicalKey(tk.instrument());
                         FundingRateData fr = fundBySymbol.get(symbol);
                         BigDecimal frValue = (fr == null) ? null : fr.fundingRate();
                         long nextFundingTs = (fr == null) ? 0L : fr.nextFundingTs();
-                        return new BucketEntry(symbol, ex, tk.lastPrice(), frValue, nextFundingTs);
+                        return new BucketEntry(symbol, client.getExchangeType(), tk.lastPrice(), frValue, nextFundingTs);
                     })
                     .filter(be -> be.price().compareTo(BigDecimal.ZERO) > 0);
         } catch (Exception e) {
-            log.warn("Не удалось получить данные с биржи {}", ex, e);
+            log.warn("Не удалось получить данные с биржи {}", client.getExchangeType(), e);
             return Stream.empty();
         }
     }
 
     private ArbitrageData buildView(Map.Entry<String, List<BucketEntry>> e) {
-        String symbol = e.getKey();                  // "BASE/QUOTE"
+        String symbol = e.getKey();
         List<BucketEntry> list = e.getValue();
 
         if (list.stream().map(BucketEntry::price).distinct().count() < 2) return null;
         if (list.stream().map(BucketEntry::funding).filter(Objects::nonNull).distinct().count() < 2) return null;
 
-        var parts = symbol.split("/");
+        String[] parts = symbol.split("/");
         CanonicalInstrument instr = new CanonicalInstrument(
                 parts.length > 0 ? parts[0] : "",
                 parts.length > 1 ? parts[1] : "USDT"
@@ -158,11 +158,5 @@ public class ArbitrageScannerService {
             }
         }
         return bestLong == null ? null : new ArbitrageData.Decision(bestLong, bestShort);
-    }
-
-    private ExchangeClient client(ExchangeType exchangeType) {
-        ExchangeClient c = factory.getClient(exchangeType);
-        if (!c.isEnabled()) throw new ExchangeException("Биржа отключена: " + exchangeType);
-        return c;
     }
 }

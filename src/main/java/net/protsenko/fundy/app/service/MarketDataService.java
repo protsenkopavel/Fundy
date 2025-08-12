@@ -1,60 +1,83 @@
 package net.protsenko.fundy.app.service;
 
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.rq.InstrumentsRequest;
 import net.protsenko.fundy.app.dto.rq.TickerRequest;
 import net.protsenko.fundy.app.dto.rq.TickersRequest;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
-import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
-import net.protsenko.fundy.app.exchange.ExchangeType;
-import net.protsenko.fundy.app.utils.InstrumentResolver;
+import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
-public class MarketDataService {
+public class MarketDataService extends BaseExchangeService {
 
-    private final ExchangeClientFactory factory;
-    private final InstrumentResolver resolver;
-
-    public List<InstrumentData> getAvailableInstruments(InstrumentsRequest instrumentsRequest) {
-        return instrumentsRequest.effectiveExchanges().parallelStream()
-                .flatMap(exchangeType -> client(exchangeType).getInstruments().stream())
-                .toList();
+    public MarketDataService(ExchangeClientFactory factory) {
+        super(factory);
     }
 
-    public List<TickerData> getTicker(TickerRequest tickerRequest) {
-        return tickerRequest.effectiveExchanges().parallelStream()
-                .map(exchangeType -> {
-                    ExchangeClient exchangeClient = client(exchangeType);
-                    InstrumentData target = resolver.resolve(exchangeType, tickerRequest.pair().base(), tickerRequest.pair().quote());
-                    return exchangeClient.getTicker(target);
+    public List<InstrumentData> getAvailableInstruments(InstrumentsRequest req) {
+        return across(req.effectiveExchanges(), c -> c.getInstruments().stream()).toList();
+    }
+
+    public List<TickerData> getTicker(TickerRequest req) {
+        return req.effectiveExchanges().parallelStream()
+                .map(ex -> {
+                    try {
+                        ExchangeClient c = client(ex);
+                        var instruments = c.getInstruments();
+                        var index = instruments.stream().collect(Collectors.toMap(
+                                SymbolNormalizer::canonicalKey,
+                                Function.identity(),
+                                (a, b) -> a
+                        ));
+                        String key = (req.pair().base() + "/" + req.pair().quote()).toUpperCase(Locale.ROOT);
+                        InstrumentData target = index.get(key);
+                        if (target == null) return null;
+                        return c.getTicker(target);
+                    } catch (Exception e) {
+                        log.warn("getTicker skip {}: {}", ex, e.getMessage());
+                        return null;
+                    }
                 })
+                .filter(Objects::nonNull)
                 .toList();
     }
 
-    public List<TickerData> getTickers(TickersRequest tickersRequest) {
-        return tickersRequest.effectiveExchanges().parallelStream()
-                .flatMap(exchangeType -> {
-                    ExchangeClient exchangeClient = client(exchangeType);
-                    List<InstrumentData> target = tickersRequest.hasPairs()
-                            ? tickersRequest.pairs().stream()
-                            .map(instrumentPair -> resolver.resolve(exchangeType, instrumentPair.base(), instrumentPair.quote()))
-                            .toList()
-                            : exchangeClient.getInstruments();
-                    return exchangeClient.getTickers(target).stream();
-                })
-                .toList();
-    }
+    public List<TickerData> getTickers(TickersRequest req) {
+        return across(req.effectiveExchanges(), c -> {
+            try {
+                List<InstrumentData> instruments = c.getInstruments();
+                if (instruments.isEmpty()) return Stream.empty();
 
-    private ExchangeClient client(ExchangeType exchangeType) {
-        ExchangeClient c = factory.getClient(exchangeType);
-        if (!c.isEnabled()) throw new ExchangeException("Биржа отключена: " + exchangeType);
-        return c;
+                List<InstrumentData> target = instruments;
+                if (req.hasPairs()) {
+                    Map<String, InstrumentData> index = instruments.stream().collect(Collectors.toMap(
+                            SymbolNormalizer::canonicalKey,
+                            Function.identity(),
+                            (a, b) -> a
+                    ));
+                    target = req.pairs().stream()
+                            .map(p -> index.get((p.base() + "/" + p.quote()).toUpperCase(Locale.ROOT)))
+                            .filter(Objects::nonNull)
+                            .toList();
+                }
+                return c.getTickers(target).stream();
+            } catch (Exception e) {
+                log.warn("getTickers skip {}: {}", c.getExchangeType(), e.getMessage());
+                return Stream.empty();
+            }
+        }).toList();
     }
 }
