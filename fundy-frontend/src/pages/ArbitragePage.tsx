@@ -114,14 +114,14 @@ export default function ArbitragePage() {
                 priceSpread: it?.priceSpread,
                 fundingSpread: it?.fundingSpread,
                 decision: it?.decision,
-                __links: it?.links || {}, // ← карта ссылок по биржам
+                __links: it?.links || {}, // карта ссылок по биржам
             };
             exList.forEach(ex => {
                 row[ex] = {
                     price: it?.prices?.[ex],
                     fundingRate: it?.fundingRates?.[ex],
                     nextFundingTs: it?.nextFundingTs?.[ex],
-                    link: it?.links?.[ex], // ← ссылка для этой биржи
+                    link: it?.links?.[ex],
                 };
             });
             return row;
@@ -140,16 +140,7 @@ export default function ArbitragePage() {
                 headerAlign: 'left',
                 renderCell: (p) => {
                     const canon = toCanonical(String(p.value ?? ''));
-                    const links = p.row?.__links as Record<string, string> | undefined;
-                    const decision = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
-
-                    // Логика: ссылка тикера = LONG биржа (если есть), иначе SHORT, иначе первая доступная
-                    const candidateOrder = [
-                        decision?.longEx, decision?.shortEx, ...exchangeList
-                    ].filter(Boolean) as string[];
-                    const href = candidateOrder.map(ex => links?.[ex!]).find(Boolean);
-
-                    const content = (
+                    return (
                         <Box sx={{
                             fontFamily: '"Roboto Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
                             fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3
@@ -157,25 +148,6 @@ export default function ArbitragePage() {
                             {labelFromCanonical(canon)}
                         </Box>
                     );
-
-                    return href
-                        ? (
-                            <Box
-                                component="a"
-                                href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                sx={{
-                                    textDecoration: 'none',
-                                    color: 'inherit',
-                                    '&:hover': {textDecoration: 'underline'}
-                                }}
-                                title="Открыть инструмент"
-                            >
-                                {content}
-                            </Box>
-                        )
-                        : content;
                 }
             },
             {
@@ -214,7 +186,7 @@ export default function ArbitragePage() {
                 sortable: false,
                 renderCell: (p) => {
                     const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
-                    if (!d || (!d.longEx && !d.shortEx)) return <Box sx={{color: '#98A2B3'}}>—</Box>;
+                    if (!d || (!d.longEx && !d.shortEx)) return <Box sx={{color: 'text.secondary'}}>—</Box>;
 
                     const chipBase = {
                         px: 1, py: 0.5, borderRadius: 2, fontSize: 12, fontWeight: 800,
@@ -228,9 +200,9 @@ export default function ArbitragePage() {
                             {d.longEx && (
                                 <Box sx={{
                                     ...chipBase,
-                                    border: '1px solid #D1FADF',
-                                    bgcolor: '#F6FEF9',
-                                    color: '#067647'
+                                    border: '1px solid rgba(34,197,94,0.35)',
+                                    bgcolor: 'rgba(34,197,94,0.12)',
+                                    color: '#22c55e'
                                 }} title={`LONG ${d.longEx}`}>
                                     LONG {d.longEx}
                                 </Box>
@@ -238,9 +210,9 @@ export default function ArbitragePage() {
                             {d.shortEx && (
                                 <Box sx={{
                                     ...chipBase,
-                                    border: '1px solid #FECDCA',
-                                    bgcolor: '#FFF6F6',
-                                    color: '#B42318'
+                                    border: '1px solid rgba(239,68,68,0.35)',
+                                    bgcolor: 'rgba(239,68,68,0.12)',
+                                    color: '#ef4444'
                                 }} title={`SHORT ${d.shortEx}`}>
                                     SHORT {d.shortEx}
                                 </Box>
@@ -266,7 +238,7 @@ export default function ArbitragePage() {
                     nextFundingTs?: number;
                     link?: string
                 } | undefined;
-                if (!cell) return <Box sx={{color: '#98A2B3'}}>—</Box>;
+                if (!cell) return <Box sx={{color: 'text.secondary'}}>—</Box>;
 
                 const inner = (
                     <Box sx={{
@@ -283,7 +255,7 @@ export default function ArbitragePage() {
                             color: pctColor(cell.fundingRate),
                             fontWeight: 600
                         }}>{fmtPct(cell.fundingRate)}</Box>
-                        <Box sx={{fontSize: 11, color: '#667085'}}>{fmtTs(cell.nextFundingTs, timeZone)}</Box>
+                        <Box sx={{fontSize: 11, color: 'text.secondary'}}>{fmtTs(cell.nextFundingTs, timeZone)}</Box>
                     </Box>
                 );
 
@@ -375,9 +347,9 @@ export default function ArbitragePage() {
                         '& .MuiDataGrid-cell': {fontSize: 13, py: 0.8},
                         '& .MuiDataGrid-columnHeaders': {
                             textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, fontSize: 12.5,
-                            backgroundColor: '#F8FAFC', borderBottom: '1px solid #EEF2F6',
+                            backgroundColor: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)',
                         },
-                        '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: '#FCFCFD'},
+                        '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: 'rgba(255,255,255,0.02)'},
                         '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': {outline: 'none'}
                     }}
                 />

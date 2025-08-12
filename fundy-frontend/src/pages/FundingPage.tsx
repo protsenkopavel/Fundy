@@ -68,7 +68,7 @@ export default function FundingPage() {
             const raw = r.symbol ?? r.nativeSymbol ?? '';
             const canon = toCanonical(raw);
             if (!byCanon[canon]) byCanon[canon] = {id: canon, instrument: labelFromCanonical(canon)};
-            byCanon[canon][ex] = {rate: r.fundingRate, ts: r.nextFundingTs, link: r.link}; // ← добавили ссылку
+            byCanon[canon][ex] = {rate: r.fundingRate, ts: r.nextFundingTs, link: r.link};
         }
 
         const exList = Array.from(exSet);
@@ -78,39 +78,14 @@ export default function FundingPage() {
             headerName: 'Инструмент',
             width: 160,
             sortable: true,
-            renderCell: (p) => {
-                // Ссылка тикера = первая доступная ссылка по приоритету бирж или из exList
-                const prefer = ['BYBIT', 'OKX', 'BITGET', 'MEXC', 'GATEIO', 'KUCOIN', 'COINEX', 'BINGX', 'HTX', ...exList];
-                const href = prefer
-                    .map(ex => p.row?.[ex]?.link)
-                    .find(Boolean);
-
-                const label = (
-                    <Box sx={{
-                        fontFamily: '"Roboto Mono", ui-monospace',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.3
-                    }}>
-                        {p.value}
-                    </Box>
-                );
-
-                return href
-                    ? (
-                        <Box
-                            component="a"
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            sx={{textDecoration: 'none', color: 'inherit', '&:hover': {textDecoration: 'underline'}}}
-                            title="Открыть инструмент"
-                        >
-                            {label}
-                        </Box>
-                    )
-                    : label;
-            }
+            renderCell: (p) => (
+                <Box sx={{
+                    fontFamily: '"Roboto Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3
+                }}>
+                    {p.value}
+                </Box>
+            )
         }];
 
         const exCols: GridColDef[] = exList.map((ex): GridColDef => ({
@@ -128,7 +103,7 @@ export default function FundingPage() {
                         <Box sx={{
                             width: '100%', height: '100%',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#98A2B3'
+                            color: 'text.secondary'
                         }}>—</Box>
                     );
                 }
@@ -140,7 +115,7 @@ export default function FundingPage() {
                         gap: 0.25, lineHeight: 1.15, textAlign: 'center'
                     }}>
                         <Box sx={{fontWeight: 700, color}}>{fmtPct(cell.rate)}</Box>
-                        <Box sx={{fontSize: 12, color: '#667085'}}>{fmtTs(cell.ts, tz)}</Box>
+                        <Box sx={{fontSize: 12, color: 'text.secondary'}}>{fmtTs(cell.ts, tz)}</Box>
                     </Box>
                 );
                 return (
@@ -229,9 +204,9 @@ export default function FundingPage() {
                         width: '100%',
                         '& .MuiDataGrid-columnHeaders': {
                             textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, fontSize: 12.5,
-                            backgroundColor: '#F8FAFC', borderBottom: '1px solid #EEF2F6'
+                            backgroundColor: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)'
                         },
-                        '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: '#FCFCFD'},
+                        '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: 'rgba(255,255,255,0.02)'},
                         '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': {outline: 'none'}
                     }}
                 />
