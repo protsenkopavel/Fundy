@@ -1,288 +1,365 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
-import { getExchanges, getTokens, postArbitrage } from '../api';
-import {
-    Box, Autocomplete, TextField, Button, CircularProgress, MenuItem
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {useQuery} from '@tanstack/react-query';
+import {Box, CircularProgress} from '@mui/material';
+import {DataGrid, type GridColDef, GridToolbar} from '@mui/x-data-grid';
+import {useSearchParams} from 'react-router-dom';
 
-type Exchange = { name: string; code?: string };
-type Token = { symbol: string; baseAsset: string; quoteAsset: string };
+import {getExchanges, postArbitrage} from '@/api';
+import type {ArbitrageRequest, ArbitrageRow, Exchange} from '@/api/types';
 
-type ArbitrageRequest = {
-  exchanges?: string[];
-  minFundingRate?: number;
-  minPerpetualPrice?: number;
-  timeZone?: string;
-};
+import ScanToolbar from '@/components/ScanToolbar';
+import {fmtPct, fmtPrice, fmtTs, labelFromCanonical, pctColor, toCanonical} from '@/lib/symbols';
+
+function CenterOverlay() {
+    return (
+        <Box sx={{
+            position: 'absolute', inset: 0, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            bgcolor: 'background.paper', opacity: 0.7
+        }}>
+            <CircularProgress/>
+        </Box>
+    );
+}
 
 export default function ArbitragePage() {
-  const exchangesQuery = useQuery<Exchange[]>({ queryKey: ['exchanges'], queryFn: getExchanges });
-  const tokensQuery = useQuery<Token[]>({ queryKey: ['tokens'], queryFn: getTokens });
+    const exchangesQuery = useQuery<Exchange[]>({queryKey: ['exchanges'], queryFn: getExchanges});
 
-  const exchanges = exchangesQuery.data ?? [];
-  const tokens = tokensQuery.data ?? [];
+    const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const tzOptions = useMemo(
+        () => [tzDefault, 'UTC', 'Europe/Moscow', 'Europe/London', 'America/New_York', 'Asia/Shanghai', 'Asia/Tokyo']
+            .filter((v, i, a) => a.indexOf(v) === i),
+        [tzDefault]
+    );
 
-  const fallbackExchanges: Exchange[] = [{ name: 'DemoExchange', code: 'demo' }];
-  const fallbackTokens: Token[] = [{ symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT' }];
+    const [selExchanges, setSelExchanges] = useState<Exchange[]>([]);
+    const [minRate, setMinRate] = useState<string>('');
+    const [minPriceSpread, setMinPriceSpread] = useState<string>('');
+    const [timeZone, setTimeZone] = useState<string>(tzDefault);
 
-  const displayExchanges = exchanges.length ? exchanges : fallbackExchanges;
-  const displayTokens = tokens.length ? tokens : fallbackTokens;
+    // URL -> state (один раз после загрузки справочников)
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        if (!exchangesQuery.data) return;
+        const exParam = searchParams.get('ex');
+        const tzParam = searchParams.get('tz');
+        const mrParam = searchParams.get('min');
+        const mpsParam = searchParams.get('mps');
 
-  const [selExchanges, setSelExchanges] = useState<Exchange[]>([]);
-  const [minRate, setMinRate] = useState<string>('');
-  const [minPriceSpread, setMinPriceSpread] = useState<string>('');
-  const [loadingArb, setLoadingArb] = useState(false);
+        if (tzParam) setTimeZone(tzParam);
+        if (mrParam) setMinRate(mrParam);
+        if (mpsParam) setMinPriceSpread(mpsParam);
 
-  const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const tzOptions = [
-    tzDefault,
-    'UTC',
-    'Europe/Moscow',
-    'Europe/London',
-    'America/New_York',
-    'Asia/Shanghai',
-    'Asia/Tokyo'
-  ].filter((v, i, a) => a.indexOf(v) === i);
-  const [timeZone, setTimeZone] = useState<string>(tzDefault);
+        if (exParam) {
+            const codes = exParam.split(',').map(s => s.trim()).filter(Boolean);
+            const byCode = new Map(exchangesQuery.data.map(e => [String(e.code ?? e.name), e] as const));
+            const selected = codes.map(c => byCode.get(c)).filter(Boolean) as Exchange[];
+            setSelExchanges(selected);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [!!exchangesQuery.data]);
 
-  const [arbitrageRows, setArbitrageRows] = useState<any[]>([]);
-  const [arbColumns, setArbColumns] = useState<any[]>([]);
+    // state -> URL
+    useEffect(() => {
+        const next = new URLSearchParams(searchParams.toString());
+        const exCodes = selExchanges.map(e => e.code ?? e.name).join(',');
+        const entries: Record<string, string | undefined> = {
+            ex: exCodes || undefined,
+            tz: timeZone || undefined,
+            min: minRate || undefined,
+            mps: minPriceSpread || undefined,
+        };
+        let changed = false;
+        for (const [k, v] of Object.entries(entries)) {
+            const cur = searchParams.get(k) ?? undefined;
+            if (cur !== v) {
+                changed = true;
+                if (v == null) next.delete(k); else next.set(k, v);
+            }
+        }
+        if (changed) setSearchParams(next, {replace: true});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selExchanges, timeZone, minRate, minPriceSpread]);
 
-  const arbitrage = useMutation<ArbitrageRequest[], Error, ArbitrageRequest, unknown>({
-    mutationFn: (req: ArbitrageRequest) => postArbitrage(req)
-  });
+    // данные таблицы и список бирж из ответа
+    const [rows, setRows] = useState<any[]>([]);
+    const [exchangeList, setExchangeList] = useState<string[]>([]);
 
-  const handleScan = () => {
-    setLoadingArb(true);
-    const parsed = minRate ? Number(minRate) : NaN;
-    const minFunding = Number.isNaN(parsed) ? undefined : (parsed / 100);
-    const minPerp = minPriceSpread ? Number(minPriceSpread) : undefined;
-    const req = {
-      exchanges: selExchanges.length ? selExchanges.map(e => e.code ?? e.name) : undefined,
-      minFundingRate: minFunding,
-      minPerpetualPrice: minPerp,
-      timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone
-    };
-    arbitrage.mutate(req, {
-      onSuccess: (data: any[]) => {
+    // Параметры последнего запуска сканирования — через ref, чтобы refetch() всегда шёл с актуальными значениями
+    const lastReqRef = useRef<ArbitrageRequest | null>(null);
+
+    // useQuery с ручным запуском (enabled:false). Данные кэшируются и переживают переходы по вкладкам.
+    const arbQuery = useQuery<ArbitrageRow[]>({
+        queryKey: ['arbitrage'],                  // единый ключ — всегда есть кэш одной «последней» выборки
+        enabled: false,                           // не автозапуск
+        queryFn: async () => {
+            if (!lastReqRef.current) return [];
+            return postArbitrage(lastReqRef.current);
+        },
+        refetchOnMount: false,                    // ничего не ломаем при возврате на страницу
+        staleTime: 5 * 60_000,
+    });
+
+    // Преобразование данных в строки таблицы (когда arbQuery.data поменялась)
+    useEffect(() => {
+        const data = arbQuery.data ?? [];
         const exSet = new Set<string>();
-        (data ?? []).forEach((it: any) => {
-          Object.keys(it.prices ?? {}).forEach((ex: string) => exSet.add(ex));
-          Object.keys(it.fundingRates ?? {}).forEach((ex: string) => exSet.add(ex));
-        });
-        const exchangesList = Array.from(exSet);
+        for (const it of data) {
+            Object.keys(it?.prices ?? {}).forEach(ex => exSet.add(ex));
+            Object.keys(it?.fundingRates ?? {}).forEach(ex => exSet.add(ex));
+            Object.keys(it?.nextFundingTs ?? {}).forEach(ex => exSet.add(ex));
+        }
+        const exList = Array.from(exSet);
+        setExchangeList(exList);
 
-        const cols: any[] = [
-          { field: 'token', headerName: 'Токен', width: 120 }
+        const mapped = data.map((it, i) => {
+            const row: any = {
+                id: it?.token ?? `arb_${i}`,
+                token: it?.token ?? `token_${i}`,
+                priceSpread: it?.priceSpread,
+                fundingSpread: it?.fundingSpread,
+                decision: it?.decision
+            };
+            exList.forEach(ex => {
+                row[ex] = {
+                    price: it?.prices?.[ex],
+                    fundingRate: it?.fundingRates?.[ex],
+                    nextFundingTs: it?.nextFundingTs?.[ex]
+                };
+            });
+            return row;
+        });
+
+        setRows(mapped);
+    }, [arbQuery.data]);
+
+    // Колонки (включая фиксированные бейджи LONG/SHORT)
+    const columns: GridColDef[] = useMemo(() => {
+        const baseCols: GridColDef[] = [
+            {
+                field: 'token',
+                headerName: 'Инструмент',
+                width: 140,
+                align: 'left',
+                headerAlign: 'left',
+                renderCell: (p) => {
+                    const canon = toCanonical(String(p.value ?? ''));
+                    return (
+                        <Box sx={{
+                            fontFamily: '"Roboto Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.3
+                        }}>
+                            {labelFromCanonical(canon)}
+                        </Box>
+                    );
+                }
+            },
+            {
+                field: 'priceSpread',
+                headerName: 'Спред цены',
+                width: 120,
+                align: 'center',
+                headerAlign: 'center',
+                renderCell: (p) => {
+                    const n = Number(p.row?.priceSpread);
+                    return <Box sx={{fontWeight: 600}}>{Number.isNaN(n) ? '—' : n.toFixed(6)}</Box>;
+                }
+            },
+            {
+                field: 'fundingSpread',
+                headerName: 'Спред фандинга',
+                width: 140,
+                align: 'center',
+                headerAlign: 'center',
+                renderCell: (p) => {
+                    const n = Number(p.row?.fundingSpread);
+                    return (
+                        <Box sx={{fontWeight: 700, color: pctColor(n)}}>
+                            {Number.isNaN(n) ? '—' : fmtPct(n)}
+                        </Box>
+                    );
+                }
+            },
+            {
+                field: 'decision',
+                headerName: 'Решение',
+                minWidth: 220,
+                flex: 0.9,
+                align: 'center',
+                headerAlign: 'center',
+                sortable: false,
+                renderCell: (p) => {
+                    const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
+                    if (!d || (!d.longEx && !d.shortEx)) return <Box sx={{color: '#98A2B3'}}>—</Box>;
+
+                    const chipBase = {
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 2,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap' as const,
+                        width: 120,                            // фикс ширина
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center' as const,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                    };
+
+                    return (
+                        <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+                            {d.longEx && (
+                                <Box
+                                    sx={{
+                                        ...chipBase,
+                                        border: '1px solid #D1FADF',
+                                        bgcolor: '#F6FEF9',
+                                        color: '#067647',
+                                    }}
+                                    title={`LONG ${d.longEx}`}
+                                >
+                                    LONG {d.longEx}
+                                </Box>
+                            )}
+                            {d.shortEx && (
+                                <Box
+                                    sx={{
+                                        ...chipBase,
+                                        border: '1px solid #FECDCA',
+                                        bgcolor: '#FFF6F6',
+                                        color: '#B42318',
+                                    }}
+                                    title={`SHORT ${d.shortEx}`}
+                                >
+                                    SHORT {d.shortEx}
+                                </Box>
+                            )}
+                        </Box>
+                    );
+                }
+            }
         ];
 
-        exchangesList.forEach(ex => {
-          cols.push({
-            field: `${ex}_price`,
-            headerName: `${ex} (price)`,
-            width: 110,
-            renderCell: (params: any) => {
-              const rawDirect = params.row?.[`${ex}_price`];
-              const rowCell = params.row?.[ex];
-              const priceVal = rawDirect ?? rowCell?.price;
-              if (priceVal == null) return <div>—</div>;
-              const formatted = Number(priceVal);
-              return <div style={{ fontWeight: 600 }}>{Number.isNaN(formatted) ? String(priceVal) : formatted.toFixed(3)}</div>;
+        const exCols: GridColDef[] = exchangeList.map((ex): GridColDef => ({
+            field: ex,
+            headerName: ex,
+            flex: 1,
+            minWidth: 190,
+            align: 'center',
+            headerAlign: 'center',
+            sortable: false,
+            renderCell: (params) => {
+                const cell = params.row?.[ex] as {
+                    price?: number;
+                    fundingRate?: number;
+                    nextFundingTs?: number
+                } | undefined;
+                if (!cell) return <Box sx={{color: '#98A2B3'}}>—</Box>;
+                return (
+                    <Box sx={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <Box sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 0.25,
+                            lineHeight: 1.15,
+                            whiteSpace: 'nowrap'
+                        }}>
+                            <Box sx={{fontWeight: 700}}>{fmtPrice(cell.price)}</Box>
+                            <Box sx={{fontSize: 12, color: pctColor(cell.fundingRate), fontWeight: 600}}>
+                                {fmtPct(cell.fundingRate)}
+                            </Box>
+                            <Box sx={{fontSize: 11, color: '#667085'}}>
+                                {fmtTs(cell.nextFundingTs, timeZone)}
+                            </Box>
+                        </Box>
+                    </Box>
+                );
             }
-          });
-        });
+        }));
 
-        exchangesList.forEach(ex => {
-          cols.push({
-            field: `${ex}_funding`,
-            headerName: `${ex} (funding)`,
-            width: 140,
-            renderCell: (params: any) => {
-              const direct = params.row?.[`${ex}_funding`];
-              const rowCell = params.row?.[ex];
-              const frVal = direct?.fundingRate ?? rowCell?.fundingRate;
-              const tsVal = direct?.nextFundingTs ?? rowCell?.nextFundingTs;
-              if (frVal == null && tsVal == null) return <div>—</div>;
-              const fr = frVal == null ? null : Number(frVal);
-              const ts = tsVal == null ? null : Number(tsVal);
-              const frText = fr == null || Number.isNaN(fr) ? '—' : (fr * 100).toFixed(4) + '%';
-              const tsText = ts ? (isNaN(new Date(ts).getTime()) ? '—' : new Date(ts).toLocaleString()) : '—';
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ fontWeight: 600 }}>{frText}</div>
-                  <div style={{ fontSize: 12, color: '#666' }}>{tsText}</div>
-                </div>
-              );
-            }
-          });
-        });
+        return [...baseCols, ...exCols];
+    }, [exchangeList, timeZone]);
 
-        cols.push(
-          {
-            field: 'priceSpread',
-            headerName: 'Лучший спред (price)',
-            width: 140,
-            renderCell: (params: any) => {
-              const v = params.row?.priceSpread;
-              if (v == null || Number.isNaN(Number(v))) return <div>—</div>;
-              const n = Number(v);
-              return <div>{Number.isNaN(n) ? String(v) : n.toFixed(6)}</div>;
-            }
-          },
-          {
-            field: 'fundingSpread',
-            headerName: 'Лучший спред (funding)',
-            width: 160,
-            renderCell: (params: any) => {
-              const v = params.row?.fundingSpread;
-              if (v == null || Number.isNaN(Number(v))) return <div>—</div>;
-              return <div>{(Number(v) * 100).toFixed(4)}%</div>;
-            }
-          },
-          {
-            field: 'decision',
-            headerName: 'Решение',
-            width: 220,
-            renderCell: (params: any) => {
-              const d = params.row?.decision;
-              return <div>{d ? `long: ${d.longEx ?? '—'}, short: ${d.shortEx ?? '—'}` : '—'}</div>;
-            }
-          }
-        );
+    const handleScan = () => {
+        const minFunding = minRate ? Number(minRate) / 100 : undefined;
+        const minPerp = minPriceSpread ? Number(minPriceSpread) : undefined;
 
-        const rows = (data ?? []).map((it: any, idx: number) => {
-          const row: any = {
-            id: `arb_${idx}`,
-            token: it.token ?? `token_${idx}`,
-            priceSpread: it.priceSpread,
-            fundingSpread: it.fundingSpread,
-            decision: it.decision
-          };
-          exchangesList.forEach(ex => {
-            const price = it.prices?.[ex];
-            const fr = it.fundingRates?.[ex];
-            const nft = it.nextFundingTs?.[ex];
-            row[ex] = {
-              price,
-              fundingRate: fr,
-              nextFundingTs: nft
-            };
-            row[`${ex}_price`] = price;
-            row[`${ex}_funding`] = {
-              fundingRate: fr,
-              nextFundingTs: nft
-            };
-          });
-          return row;
-        });
+        lastReqRef.current = {
+            exchanges: selExchanges.length ? selExchanges.map(e => e.code ?? e.name) : undefined,
+            minFundingRate: Number.isFinite(minFunding as number) ? minFunding : undefined,
+            minPerpetualPrice: Number.isFinite(minPerp as number) ? minPerp : undefined,
+            timeZone
+        };
+        // запускаем запрос и остаётся в кэше
+        arbQuery.refetch();
+    };
 
-        setArbColumns(cols);
-        setArbitrageRows(rows);
-      },
-      onSettled: () => setLoadingArb(false)
-    });
-  };
+    const handleReset = () => {
+        setSelExchanges([]);
+        setMinRate('');
+        setMinPriceSpread('');
+        setTimeZone(tzDefault);
+        // не чистим кэш — чтобы при возврате пользователь видел последние данные,
+        // если нужно «чистить», вызовите queryClient.removeQueries(['arbitrage'])
+    };
 
-  if (exchangesQuery.isLoading || tokensQuery.isLoading) {
-    return <div>Загрузка...</div>;
-  }
+    if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;
 
-  return (
-    <>
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <Autocomplete
-          multiple
-          disableCloseOnSelect
-          options={displayExchanges}
-          getOptionLabel={o => (o as Exchange).name}
-          onChange={(_, v) => setSelExchanges(v as Exchange[])}
-          renderInput={p => <TextField {...p} label="Биржи" />}
-          sx={{ minWidth: 200 }}
-        />
+    return (
+        <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, height: 'calc(100dvh - 120px)'}}>
+            <ScanToolbar
+                exchanges={exchangesQuery.data ?? []}
+                timeZone={tzDefault}
+                timeZones={tzOptions}
+                loading={arbQuery.isFetching}
+                onScan={handleScan}
+                onReset={handleReset}
+                selExchanges={selExchanges} setSelExchanges={setSelExchanges}
+                minRate={minRate} setMinRate={setMinRate}
+                minPriceSpread={minPriceSpread} setMinPriceSpread={setMinPriceSpread}
+                timeZoneValue={timeZone} setTimeZoneValue={setTimeZone}
+            />
 
-        <Autocomplete
-          multiple
-          options={displayTokens}
-          getOptionLabel={t => (t as Token).symbol}
-          renderInput={p => <TextField {...p} label="Токены" />}
-          sx={{ minWidth: 250 }}
-        />
-
-        <TextField
-          label="Мин. фандинг (%)"
-          placeholder="Напр. 0.5"
-          value={minRate}
-          onChange={e => setMinRate(e.target.value)}
-          type="number"
-          inputProps={{ step: 0.05, min: 0 }}
-          sx={{ width: 140 }}
-        />
-
-        <TextField
-          label="Мин. ценовой спред"
-          placeholder="Напр. 0.001"
-          value={minPriceSpread}
-          onChange={e => setMinPriceSpread(e.target.value)}
-          type="number"
-          inputProps={{ step: 0.001, min: 0 }}
-          sx={{ width: 160 }}
-        />
-
-        <TextField
-          select
-          label="Часовой пояс"
-          value={timeZone}
-          onChange={e => setTimeZone(e.target.value)}
-          sx={{ width: 220 }}
-          size="small"
-        >
-          {tzOptions.map(tz => <MenuItem key={tz} value={tz}>{tz}</MenuItem>)}
-        </TextField>
-
-        <Button variant="contained" onClick={handleScan} disabled={loadingArb}>
-          {loadingArb ? <CircularProgress size={24}/> : 'Сканировать'}
-        </Button>
-      </Box>
-
-      <div style={{ height: 640, width: '100%' }}>
-        <DataGrid
-          rows={arbitrageRows}
-          columns={arbColumns && arbColumns.length ? arbColumns : [
-            { field: 'token', headerName: 'Токен', minWidth: 120, flex: 0.8 },
-            { field: 'priceSpread', headerName: 'Spread (price)', minWidth: 120, flex: 0.6,
-              renderCell: (params: any) => {
-                const v = params.row?.priceSpread;
-                if (v == null || Number.isNaN(Number(v))) return <div>—</div>;
-                return <div>{Number(v).toFixed(6)}</div>;
-              }
-            },
-            { field: 'fundingSpread', headerName: 'Spread (funding)', minWidth: 140, flex: 0.7,
-              renderCell: (params: any) => {
-                const v = params.row?.fundingSpread;
-                if (v == null || Number.isNaN(Number(v))) return <div>—</div>;
-                return <div>{(Number(v) * 100).toFixed(4)}%</div>;
-              }
-            },
-            { field: 'decision', headerName: 'Решение', minWidth: 220, flex: 1,
-              renderCell: (params: any) => {
-                const d = params.row?.decision;
-                return <div>{d ? `long: ${d.longEx ?? '—'}, short: ${d.shortEx ?? '—'}` : '—'}</div>;
-              }
-            }
-          ]}
-          pageSizeOptions={[25,50,100]}
-          initialState={{ pagination: { paginationModel: { pageSize: 100 } } }}
-          pagination
-          density="comfortable"
-          disableRowSelectionOnClick
-          sx={{
-            width: '100%',
-            '& .MuiDataGrid-cell': { py: 0.8 },
-            '& .MuiDataGrid-columnHeaders': { background: '#fafafa' }
-          }}
-        />
-      </div>
-    </>
-  );
+            <Box sx={{flex: 1, minHeight: 0}}>
+                <DataGrid
+                    rows={rows}
+                    columns={columns.length ? columns : [{field: 'token', headerName: 'Инструмент', width: 140}]}
+                    getRowId={(r) => r.id}
+                    loading={arbQuery.isFetching}
+                    slots={{toolbar: GridToolbar, loadingOverlay: CenterOverlay}}
+                    slotProps={{toolbar: {showQuickFilter: true, quickFilterProps: {debounceMs: 300}}}}
+                    getRowHeight={() => 64}
+                    disableRowSelectionOnClick
+                    density="compact"
+                    rowBufferPx={300}
+                    sx={{
+                        height: '100%',
+                        width: '100%',
+                        '& .MuiDataGrid-cell': {fontSize: 13, py: 0.8},
+                        '& .MuiDataGrid-columnHeaders': {
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.6,
+                            fontWeight: 700,
+                            fontSize: 12.5,
+                            backgroundColor: '#F8FAFC',
+                            borderBottom: '1px solid #EEF2F6',
+                        },
+                        '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: '#FCFCFD'},
+                        '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': {outline: 'none'}
+                    }}
+                />
+            </Box>
+        </Box>
+    );
 }

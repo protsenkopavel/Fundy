@@ -1,0 +1,13 @@
+:root{
+    --app-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", sans-serif;
+}
+
+/* базовый шрифт приложения */
+html, body, #root { height: 100%; font-family: var(--app-font); }
+
+/* принудительно для DataGrid (чтобы не подхватывалось разное) */
+.MuiDataGrid-root, .MuiDataGrid-root * {
+    font-family: var(--app-font) !important;
+}

@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/api/client.ts","./src/api/index.ts","./src/api/types.ts","./src/components/ScanToolbar.tsx","./src/lib/symbols.ts","./src/lib/useSearchParamsSync.ts","./src/pages/ArbitragePage.tsx","./src/pages/FeedbackPage.tsx","./src/pages/FundingPage.tsx"],"version":"5.8.3"}

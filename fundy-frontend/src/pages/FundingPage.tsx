@@ -1,145 +1,232 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
-import { getExchanges, getTokens, postFunding } from '../api';
-import { Box, Autocomplete, TextField, Button, CircularProgress, MenuItem } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+// src/pages/FundingPage.tsx
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {useQuery} from '@tanstack/react-query';
+import {Box} from '@mui/material';
+import {DataGrid, type GridColDef, GridToolbar} from '@mui/x-data-grid';
+
+import {getExchanges, getTokens, postFunding} from '@/api';
+import type {Exchange, FundingRow} from '@/api/types';
+import ScanToolbar from '@/components/ScanToolbar';
+import {fmtPct, fmtTs, labelFromCanonical, pctColor, toCanonical} from '@/lib/symbols';
+
+function CenterOverlay() {
+    return (
+        <Box
+            sx={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'background.paper',
+                opacity: 0.7,
+            }}
+        >
+            Загрузка…
+        </Box>
+    );
+}
 
 export default function FundingPage() {
-  const exchangesQuery = useQuery<any[]>({ queryKey: ['exchanges'], queryFn: getExchanges });
-  const tokensQuery = useQuery<any[]>({ queryKey: ['tokens'], queryFn: getTokens });
+    const exchangesQuery = useQuery<Exchange[]>({queryKey: ['exchanges'], queryFn: getExchanges});
+    // прогреем список токенов (не обязателен к использованию здесь)
+    useQuery({queryKey: ['tokens'], queryFn: getTokens, staleTime: 5 * 60_000});
 
-  const exchanges = exchangesQuery.data ?? [];
-  const tokens = tokensQuery.data ?? [];
+    const [selEx, setSelEx] = useState<Exchange[]>([]);
+    const [minRate, setMinRate] = useState('');
+    const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const tzs = useMemo(
+        () =>
+            [tzDefault, 'UTC', 'Europe/Moscow', 'Europe/London', 'America/New_York', 'Asia/Shanghai', 'Asia/Tokyo'].filter(
+                (v, i, a) => a.indexOf(v) === i
+            ),
+        [tzDefault]
+    );
+    const [tz, setTz] = useState(tzDefault);
 
-  const [selExchanges, setSelExchanges] = useState<any[]>([]);
-  const [minRate, setMinRate] = useState('');
-  const [loadingFunding, setLoadingFunding] = useState(false);
-  const [fundingRows, setFundingRows] = useState<any[]>([]);
+    const [rows, setRows] = useState<any[]>([]);
+    const [cols, setCols] = useState<GridColDef[]>([]);
 
-  const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const tzOptions = [tzDefault, 'UTC', 'Europe/Moscow', 'Europe/London', 'America/New_York', 'Asia/Shanghai', 'Asia/Tokyo'].filter((v, i, a) => a.indexOf(v) === i);
-  const [timeZone, setTimeZone] = useState<string>(tzDefault);
+    // «Ленивая» загрузка данных по кнопке через useQuery + refetch(),
+    // чтобы кэш переживал переключение вкладок
+    const lastReqRef = useRef<{ exchanges?: string[]; minFundingRate?: string; timeZone?: string } | null>(null);
 
-  const funding = useMutation({ mutationFn: (req: any) => postFunding(req) });
-
-  const handleScan = () => {
-    setLoadingFunding(true);
-    const parsed = minRate ? Number(minRate) : NaN;
-    const minFundingRateStr = Number.isNaN(parsed) ? undefined : String(parsed / 100);
-
-    funding.mutate({
-      exchanges: selExchanges.length ? selExchanges.map((e: any) => (e.code ?? e.name ?? e.type)) : undefined,
-      minFundingRate: minFundingRateStr,
-      timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }, {
-      onSuccess: (data: any[]) => {
-        const rows = (data ?? []).map((r: any, i: number) => {
-          const fr = r?.fundingRate;
-          const ts = r?.nextFundingTs;
-          return {
-            id: `${r.exchange ?? 'ex'}_${r.symbol ?? i}_${i}`,
-            exchange: r.exchange,
-            symbol: r.symbol,
-            fundingRate: fr == null ? undefined : (Number(fr)),
-            nextFundingTs: ts == null ? undefined : Number(ts),
-            __raw: r
-          };
-        });
-        setFundingRows(rows);
-      },
-      onSettled: () => setLoadingFunding(false),
+    const funding = useQuery<FundingRow[]>({
+        queryKey: ['funding'],
+        enabled: false,
+        queryFn: async () => {
+            if (!lastReqRef.current) return [];
+            return postFunding(lastReqRef.current);
+        },
+        refetchOnMount: false,
+        staleTime: 5 * 60_000,
     });
-  };
 
-  if (exchangesQuery.isLoading || tokensQuery.isLoading) {
-    return <div>Загрузка...</div>;
-  }
+    // ✅ ПРАВКА: перенос логики построения колонок/строк из useMemo в useEffect
+    useEffect(() => {
+        const data = funding.data ?? [];
+        const byCanon: Record<string, any> = {};
+        const exSet = new Set<string>();
 
+        for (const r of data) {
+            const ex = String(r.exchange || '');
+            if (!ex) continue;
+            exSet.add(ex);
+            const raw = r.symbol ?? r.nativeSymbol ?? '';
+            const canon = toCanonical(raw);
+            if (!byCanon[canon]) byCanon[canon] = {id: canon, instrument: labelFromCanonical(canon)};
+            byCanon[canon][ex] = {rate: r.fundingRate, ts: r.nextFundingTs};
+        }
 
-  return (
-    <>
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
-        <Autocomplete
-          multiple
-          disableCloseOnSelect
-          options={exchanges}
-          getOptionLabel={(o: any) => o.name}
-          onChange={(_, v) => setSelExchanges(v)}
-          renderInput={p => <TextField {...p} label="Биржи" />}
-          sx={{ minWidth: 200 }}
-        />
+        const exList = Array.from(exSet);
 
-        <Autocomplete
-          multiple
-          options={tokens}
-          getOptionLabel={(o: any) => o?.symbol ?? o?.nativeSymbol ?? ((o?.baseAsset ?? '') + (o?.quoteAsset ?? ''))}
-          renderInput={p => <TextField {...p} label="Токены" />}
-          sx={{ minWidth: 250 }}
-        />
+        const base: GridColDef[] = [
+            {
+                field: 'instrument',
+                headerName: 'Инструмент',
+                width: 160,
+                sortable: true,
+                renderCell: (p) => (
+                    <Box
+                        sx={{
+                            fontFamily: '"Roboto Mono", ui-monospace',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.3,
+                        }}
+                    >
+                        {p.value}
+                    </Box>
+                ),
+            },
+        ];
 
-        <TextField
-          label="Мин. фандинг (%)"
-          placeholder="Напр. 0.5"
-          value={minRate}
-          onChange={e => setMinRate(e.target.value)}
-          type="number"
-          inputProps={{ step: 0.05, min: 0 }}
-          sx={{ width: 140 }}
-        />
-
-        <TextField
-          select
-          label="Часовой пояс"
-          value={timeZone}
-          onChange={e => setTimeZone(e.target.value)}
-          sx={{ width: 220 }}
-          size="small"
-        >
-          {tzOptions.map(tz => <MenuItem key={tz} value={tz}>{tz}</MenuItem>)}
-        </TextField>
-
-        <Button variant="contained" onClick={handleScan} disabled={loadingFunding}>
-          {loadingFunding ? <CircularProgress size={24}/> : 'Сканировать'}
-        </Button>
-      </Box>
-
-      <DataGrid
-        rows={fundingRows}
-        columns={[
-          { field: 'exchange', headerName: 'Биржа', width: 120 },
-          { field: 'symbol', headerName: 'Тикер', width: 160 },
-          {
-            field: 'fundingRate',
-            headerName: 'Фандинг %',
-            width: 140,
-            renderCell: (params: any) => {
-              const row = params.row || {};
-              const raw = row.fundingRate ?? row.__raw?.fundingRate;
-              const num = raw == null ? NaN : Number(raw);
-              if (Number.isNaN(num)) return <div>—</div>;
-              return <div>{(num * 100).toFixed(4)}%</div>;
-            }
-          },
-          {
-            field: 'nextFundingTs',
-            headerName: 'След. время',
+        const exCols: GridColDef[] = exList.map((ex): GridColDef => ({
+            field: ex,
+            headerName: ex,
             flex: 1,
-            renderCell: (params: any) => {
-              const row = params.row || {};
-              const rawTs = row.nextFundingTs ?? row.__raw?.nextFundingTs;
-              const ts = rawTs == null ? NaN : Number(rawTs);
-              if (Number.isNaN(ts) || !ts) return <div>—</div>;
-              const d = new Date(ts);
-              if (isNaN(d.getTime())) return <div>—</div>;
-              return <div>{d.toLocaleString()}</div>;
-            }
-          }
-        ]}
-        autoHeight={false}
-        density="comfortable"
-        disableRowSelectionOnClick
-        sx={{ height: fundingRows && fundingRows.length ? Math.min(Math.max(fundingRows.length * 52 + 120, 320), 1200) : 320 }}
-      />
-    </>
-  );
+            minWidth: 180,
+            align: 'center',
+            headerAlign: 'center',
+            sortable: false,
+            renderCell: (params) => {
+                const cell = params.row?.[ex];
+                if (!cell) {
+                    return (
+                        <Box
+                            sx={{
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#98A2B3',
+                            }}
+                        >
+                            —
+                        </Box>
+                    );
+                }
+                const color = pctColor(cell.rate);
+                return (
+                    <Box
+                        sx={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 0.25,
+                                lineHeight: 1.15,
+                                textAlign: 'center',
+                            }}
+                        >
+                            <Box sx={{fontWeight: 700, color}}>{fmtPct(cell.rate)}</Box>
+                            <Box sx={{fontSize: 12, color: '#667085'}}>{fmtTs(cell.ts, tz)}</Box>
+                        </Box>
+                    </Box>
+                );
+            },
+        }));
+
+        setCols([...base, ...exCols]);
+        setRows(Object.values(byCanon));
+    }, [funding.data, tz]);
+
+    const handleScan = () => {
+        const parsed = minRate ? Number(minRate) : NaN;
+        const minFundingRate = Number.isNaN(parsed) ? undefined : String(parsed / 100);
+
+        lastReqRef.current = {
+            exchanges: selEx.length ? selEx.map((e) => e.code ?? e.name) : undefined,
+            minFundingRate,
+            timeZone: undefined, // время форматируем на фронте
+        };
+        funding.refetch();
+    };
+
+    const handleReset = () => {
+        setSelEx([]);
+        setMinRate('');
+        setTz(tzDefault);
+        // кэш оставляем — пользователь увидит последнюю таблицу при возврате
+    };
+
+    if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;
+
+    return (
+        <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, height: 'calc(100dvh - 120px)'}}>
+            <ScanToolbar
+                exchanges={exchangesQuery.data ?? []}
+                timeZone={tzDefault}
+                timeZones={tzs}
+                loading={funding.isFetching}
+                onScan={handleScan}
+                onReset={handleReset}
+                selExchanges={selEx}
+                setSelExchanges={setSelEx}
+                minRate={minRate}
+                setMinRate={setMinRate}
+                timeZoneValue={tz}
+                setTimeZoneValue={setTz}
+            />
+
+            <Box sx={{flex: 1, minHeight: 0}}>
+                <DataGrid
+                    rows={rows}
+                    columns={cols.length ? cols : [{field: 'instrument', headerName: 'Инструмент', width: 160}]}
+                    getRowId={(r) => r.id}
+                    loading={funding.isFetching}
+                    slots={{toolbar: GridToolbar, loadingOverlay: CenterOverlay}}
+                    slotProps={{toolbar: {showQuickFilter: true, quickFilterProps: {debounceMs: 300}}}}
+                    getRowHeight={() => 60}
+                    disableRowSelectionOnClick
+                    density="compact"
+                    rowBufferPx={300}
+                    sx={{
+                        height: '100%',
+                        width: '100%',
+                        '& .MuiDataGrid-columnHeaders': {
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.6,
+                            fontWeight: 700,
+                            fontSize: 12.5,
+                            backgroundColor: '#F8FAFC',
+                            borderBottom: '1px solid #EEF2F6',
+                        },
+                        '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: '#FCFCFD'},
+                        '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': {outline: 'none'},
+                    }}
+                />
+            </Box>
+        </Box>
+    );
 }
