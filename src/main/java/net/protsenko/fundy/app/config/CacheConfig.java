@@ -38,7 +38,8 @@ public class CacheConfig {
         manager.setCaches(List.of(
                 new CaffeineCache("ex-instruments", instruments.build()),
                 new CaffeineCache("ex-tickers", tickers.build()),
-                new CaffeineCache("ex-funding", funding.build())
+                new CaffeineCache("ex-funding", funding.build()),
+                new CaffeineCache("ex-funding-meta", funding.build())
         ));
         return manager;
     }

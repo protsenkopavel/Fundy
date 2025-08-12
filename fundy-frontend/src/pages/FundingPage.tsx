@@ -57,18 +57,18 @@ export default function FundingPage() {
     });
 
     useEffect(() => {
-        const data = funding.data ?? [];
+        const data = (funding.data ?? []) as any[];
         const byCanon: Record<string, any> = {};
         const exSet = new Set<string>();
 
         for (const r of data) {
-            const ex = String(r.exchange || '');
+            const ex = String(r.exchange || r.ex || r.exchangeType || '');
             if (!ex) continue;
             exSet.add(ex);
             const raw = r.symbol ?? r.nativeSymbol ?? '';
             const canon = toCanonical(raw);
             if (!byCanon[canon]) byCanon[canon] = {id: canon, instrument: labelFromCanonical(canon)};
-            byCanon[canon][ex] = {rate: r.fundingRate, ts: r.nextFundingTs};
+            byCanon[canon][ex] = {rate: r.fundingRate, ts: r.nextFundingTs, link: r.link}; // ← добавили ссылку
         }
 
         const exList = Array.from(exSet);
@@ -78,16 +78,39 @@ export default function FundingPage() {
             headerName: 'Инструмент',
             width: 160,
             sortable: true,
-            renderCell: (p) => (
-                <Box sx={{
-                    fontFamily: '"Roboto Mono", ui-monospace',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.3
-                }}>
-                    {p.value}
-                </Box>
-            )
+            renderCell: (p) => {
+                // Ссылка тикера = первая доступная ссылка по приоритету бирж или из exList
+                const prefer = ['BYBIT', 'OKX', 'BITGET', 'MEXC', 'GATEIO', 'KUCOIN', 'COINEX', 'BINGX', 'HTX', ...exList];
+                const href = prefer
+                    .map(ex => p.row?.[ex]?.link)
+                    .find(Boolean);
+
+                const label = (
+                    <Box sx={{
+                        fontFamily: '"Roboto Mono", ui-monospace',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.3
+                    }}>
+                        {p.value}
+                    </Box>
+                );
+
+                return href
+                    ? (
+                        <Box
+                            component="a"
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            sx={{textDecoration: 'none', color: 'inherit', '&:hover': {textDecoration: 'underline'}}}
+                            title="Открыть инструмент"
+                        >
+                            {label}
+                        </Box>
+                    )
+                    : label;
+            }
         }];
 
         const exCols: GridColDef[] = exList.map((ex): GridColDef => ({
@@ -99,7 +122,7 @@ export default function FundingPage() {
             headerAlign: 'center',
             sortable: false,
             renderCell: (params) => {
-                const cell = params.row?.[ex];
+                const cell = params.row?.[ex] as { rate?: number; ts?: number; link?: string } | undefined;
                 if (!cell) {
                     return (
                         <Box sx={{
@@ -110,6 +133,16 @@ export default function FundingPage() {
                     );
                 }
                 const color = pctColor(cell.rate);
+                const inner = (
+                    <Box sx={{
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center',
+                        gap: 0.25, lineHeight: 1.15, textAlign: 'center'
+                    }}>
+                        <Box sx={{fontWeight: 700, color}}>{fmtPct(cell.rate)}</Box>
+                        <Box sx={{fontSize: 12, color: '#667085'}}>{fmtTs(cell.ts, tz)}</Box>
+                    </Box>
+                );
                 return (
                     <Box sx={{
                         width: '100%',
@@ -118,14 +151,24 @@ export default function FundingPage() {
                         alignItems: 'center',
                         justifyContent: 'center'
                     }}>
-                        <Box sx={{
-                            display: 'flex', flexDirection: 'column',
-                            alignItems: 'center', justifyContent: 'center',
-                            gap: 0.25, lineHeight: 1.15, textAlign: 'center'
-                        }}>
-                            <Box sx={{fontWeight: 700, color}}>{fmtPct(cell.rate)}</Box>
-                            <Box sx={{fontSize: 12, color: '#667085'}}>{fmtTs(cell.ts, tz)}</Box>
-                        </Box>
+                        {cell.link
+                            ? (
+                                <Box
+                                    component="a"
+                                    href={cell.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{
+                                        textDecoration: 'none',
+                                        color: 'inherit',
+                                        '&:hover': {textDecoration: 'underline'}
+                                    }}
+                                    title={`Открыть на ${ex}`}
+                                >
+                                    {inner}
+                                </Box>
+                            )
+                            : inner}
                     </Box>
                 );
             }
@@ -151,7 +194,6 @@ export default function FundingPage() {
         setSelEx([]);
         setMinRate('');
         setTz(tzDefault);
-        // кэш не чистим — при возврате таблица останется
     };
 
     if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;

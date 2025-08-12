@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Box, CircularProgress } from '@mui/material';
-import { DataGrid, type GridColDef, GridToolbar } from '@mui/x-data-grid';
-import { useSearchParams } from 'react-router-dom';
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {useQuery} from '@tanstack/react-query';
+import {Box, CircularProgress} from '@mui/material';
+import {DataGrid, type GridColDef, GridToolbar} from '@mui/x-data-grid';
+import {useSearchParams} from 'react-router-dom';
 
-import { getExchanges, postArbitrage } from '@/api';
-import type { Exchange, ArbitrageRequest, ArbitrageRow } from '@/api/types';
+import {getExchanges, postArbitrage} from '@/api';
+import type {ArbitrageRequest, ArbitrageRow, Exchange} from '@/api/types';
 
 import ScanToolbar from '@/components/ScanToolbar';
-import { fmtPct, pctColor, fmtPrice, fmtTs, toCanonical, labelFromCanonical } from '@/lib/symbols';
-import { EUROPE_TIMEZONES, BASE_TIMEZONES } from '@/lib/timezones';
+import {fmtPct, fmtPrice, fmtTs, labelFromCanonical, pctColor, toCanonical} from '@/lib/symbols';
+import {BASE_TIMEZONES, EUROPE_TIMEZONES} from '@/lib/timezones';
 
 function CenterOverlay() {
     return (
@@ -18,13 +18,13 @@ function CenterOverlay() {
             alignItems: 'center', justifyContent: 'center',
             bgcolor: 'background.paper', opacity: 0.7
         }}>
-            <CircularProgress />
+            <CircularProgress/>
         </Box>
     );
 }
 
 export default function ArbitragePage() {
-    const exchangesQuery = useQuery<Exchange[]>({ queryKey: ['exchanges'], queryFn: getExchanges });
+    const exchangesQuery = useQuery<Exchange[]>({queryKey: ['exchanges'], queryFn: getExchanges});
 
     const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     const tzOptions = useMemo(() => {
@@ -76,7 +76,7 @@ export default function ArbitragePage() {
                 if (v == null) next.delete(k); else next.set(k, v);
             }
         }
-        if (changed) setSearchParams(next, { replace: true });
+        if (changed) setSearchParams(next, {replace: true});
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selExchanges, timeZone, minRate, minPriceSpread]);
 
@@ -99,7 +99,7 @@ export default function ArbitragePage() {
     useEffect(() => {
         const data = arbQuery.data ?? [];
         const exSet = new Set<string>();
-        for (const it of data) {
+        for (const it of data as any[]) {
             Object.keys(it?.prices ?? {}).forEach(ex => exSet.add(ex));
             Object.keys(it?.fundingRates ?? {}).forEach(ex => exSet.add(ex));
             Object.keys(it?.nextFundingTs ?? {}).forEach(ex => exSet.add(ex));
@@ -107,19 +107,21 @@ export default function ArbitragePage() {
         const exList = Array.from(exSet);
         setExchangeList(exList);
 
-        const mapped = data.map((it, i) => {
+        const mapped = (data as any[]).map((it, i) => {
             const row: any = {
                 id: it?.token ?? `arb_${i}`,
                 token: it?.token ?? `token_${i}`,
                 priceSpread: it?.priceSpread,
                 fundingSpread: it?.fundingSpread,
-                decision: it?.decision
+                decision: it?.decision,
+                __links: it?.links || {}, // ← карта ссылок по биржам
             };
             exList.forEach(ex => {
                 row[ex] = {
                     price: it?.prices?.[ex],
                     fundingRate: it?.fundingRates?.[ex],
-                    nextFundingTs: it?.nextFundingTs?.[ex]
+                    nextFundingTs: it?.nextFundingTs?.[ex],
+                    link: it?.links?.[ex], // ← ссылка для этой биржи
                 };
             });
             return row;
@@ -133,12 +135,21 @@ export default function ArbitragePage() {
             {
                 field: 'token',
                 headerName: 'Инструмент',
-                width: 140,
+                width: 160,
                 align: 'left',
                 headerAlign: 'left',
                 renderCell: (p) => {
                     const canon = toCanonical(String(p.value ?? ''));
-                    return (
+                    const links = p.row?.__links as Record<string, string> | undefined;
+                    const decision = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
+
+                    // Логика: ссылка тикера = LONG биржа (если есть), иначе SHORT, иначе первая доступная
+                    const candidateOrder = [
+                        decision?.longEx, decision?.shortEx, ...exchangeList
+                    ].filter(Boolean) as string[];
+                    const href = candidateOrder.map(ex => links?.[ex!]).find(Boolean);
+
+                    const content = (
                         <Box sx={{
                             fontFamily: '"Roboto Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
                             fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3
@@ -146,6 +157,25 @@ export default function ArbitragePage() {
                             {labelFromCanonical(canon)}
                         </Box>
                     );
+
+                    return href
+                        ? (
+                            <Box
+                                component="a"
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                sx={{
+                                    textDecoration: 'none',
+                                    color: 'inherit',
+                                    '&:hover': {textDecoration: 'underline'}
+                                }}
+                                title="Открыть инструмент"
+                            >
+                                {content}
+                            </Box>
+                        )
+                        : content;
                 }
             },
             {
@@ -156,7 +186,7 @@ export default function ArbitragePage() {
                 headerAlign: 'center',
                 renderCell: (p) => {
                     const n = Number(p.row?.priceSpread);
-                    return <Box sx={{ fontWeight: 600 }}>{Number.isNaN(n) ? '—' : n.toFixed(6)}</Box>;
+                    return <Box sx={{fontWeight: 600}}>{Number.isNaN(n) ? '—' : n.toFixed(6)}</Box>;
                 }
             },
             {
@@ -168,7 +198,7 @@ export default function ArbitragePage() {
                 renderCell: (p) => {
                     const n = Number(p.row?.fundingSpread);
                     return (
-                        <Box sx={{ fontWeight: 700, color: pctColor(n) }}>
+                        <Box sx={{fontWeight: 700, color: pctColor(n)}}>
                             {Number.isNaN(n) ? '—' : fmtPct(n)}
                         </Box>
                     );
@@ -184,7 +214,7 @@ export default function ArbitragePage() {
                 sortable: false,
                 renderCell: (p) => {
                     const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
-                    if (!d || (!d.longEx && !d.shortEx)) return <Box sx={{ color: '#98A2B3' }}>—</Box>;
+                    if (!d || (!d.longEx && !d.shortEx)) return <Box sx={{color: '#98A2B3'}}>—</Box>;
 
                     const chipBase = {
                         px: 1, py: 0.5, borderRadius: 2, fontSize: 12, fontWeight: 800,
@@ -194,14 +224,24 @@ export default function ArbitragePage() {
                     };
 
                     return (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
                             {d.longEx && (
-                                <Box sx={{ ...chipBase, border: '1px solid #D1FADF', bgcolor: '#F6FEF9', color: '#067647' }} title={`LONG ${d.longEx}`}>
+                                <Box sx={{
+                                    ...chipBase,
+                                    border: '1px solid #D1FADF',
+                                    bgcolor: '#F6FEF9',
+                                    color: '#067647'
+                                }} title={`LONG ${d.longEx}`}>
                                     LONG {d.longEx}
                                 </Box>
                             )}
                             {d.shortEx && (
-                                <Box sx={{ ...chipBase, border: '1px solid #FECDCA', bgcolor: '#FFF6F6', color: '#B42318' }} title={`SHORT ${d.shortEx}`}>
+                                <Box sx={{
+                                    ...chipBase,
+                                    border: '1px solid #FECDCA',
+                                    bgcolor: '#FFF6F6',
+                                    color: '#B42318'
+                                }} title={`SHORT ${d.shortEx}`}>
                                     SHORT {d.shortEx}
                                 </Box>
                             )}
@@ -220,15 +260,59 @@ export default function ArbitragePage() {
             headerAlign: 'center',
             sortable: false,
             renderCell: (params) => {
-                const cell = params.row?.[ex] as { price?: number; fundingRate?: number; nextFundingTs?: number } | undefined;
-                if (!cell) return <Box sx={{ color: '#98A2B3' }}>—</Box>;
+                const cell = params.row?.[ex] as {
+                    price?: number;
+                    fundingRate?: number;
+                    nextFundingTs?: number;
+                    link?: string
+                } | undefined;
+                if (!cell) return <Box sx={{color: '#98A2B3'}}>—</Box>;
+
+                const inner = (
+                    <Box sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 0.25,
+                        lineHeight: 1.15,
+                        whiteSpace: 'nowrap'
+                    }}>
+                        <Box sx={{fontWeight: 700}}>{fmtPrice(cell.price)}</Box>
+                        <Box sx={{
+                            fontSize: 12,
+                            color: pctColor(cell.fundingRate),
+                            fontWeight: 600
+                        }}>{fmtPct(cell.fundingRate)}</Box>
+                        <Box sx={{fontSize: 11, color: '#667085'}}>{fmtTs(cell.nextFundingTs, timeZone)}</Box>
+                    </Box>
+                );
+
                 return (
-                    <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25, lineHeight: 1.15, whiteSpace: 'nowrap' }}>
-                            <Box sx={{ fontWeight: 700 }}>{fmtPrice(cell.price)}</Box>
-                            <Box sx={{ fontSize: 12, color: pctColor(cell.fundingRate), fontWeight: 600 }}>{fmtPct(cell.fundingRate)}</Box>
-                            <Box sx={{ fontSize: 11, color: '#667085' }}>{fmtTs(cell.nextFundingTs, timeZone)}</Box>
-                        </Box>
+                    <Box sx={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        {cell.link
+                            ? (
+                                <Box
+                                    component="a"
+                                    href={cell.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    sx={{
+                                        textDecoration: 'none',
+                                        color: 'inherit',
+                                        '&:hover': {textDecoration: 'underline'}
+                                    }}
+                                    title={`Открыть на ${ex}`}
+                                >
+                                    {inner}
+                                </Box>
+                            )
+                            : inner}
                     </Box>
                 );
             }
@@ -255,13 +339,12 @@ export default function ArbitragePage() {
         setMinRate('');
         setMinPriceSpread('');
         setTimeZone(tzDefault);
-        // кэш не чистим — остаются последние данные
     };
 
-    if (exchangesQuery.isLoading) return <Box sx={{ p: 3 }}>Загрузка…</Box>;
+    if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: 'calc(100dvh - 120px)' }}>
+        <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, height: 'calc(100dvh - 120px)'}}>
             <ScanToolbar
                 exchanges={exchangesQuery.data ?? []}
                 timeZone={tzDefault}
@@ -269,34 +352,33 @@ export default function ArbitragePage() {
                 loading={arbQuery.isFetching}
                 onScan={handleScan}
                 onReset={handleReset}
-                // CSV не передаём, чтоб не показывать кнопку
                 selExchanges={selExchanges} setSelExchanges={setSelExchanges}
                 minRate={minRate} setMinRate={setMinRate}
                 minPriceSpread={minPriceSpread} setMinPriceSpread={setMinPriceSpread}
                 timeZoneValue={timeZone} setTimeZoneValue={setTimeZone}
             />
 
-            <Box sx={{ flex: 1, minHeight: 0 }}>
+            <Box sx={{flex: 1, minHeight: 0}}>
                 <DataGrid
                     rows={rows}
-                    columns={columns.length ? columns : [{ field: 'token', headerName: 'Инструмент', width: 140 }]}
+                    columns={columns.length ? columns : [{field: 'token', headerName: 'Инструмент', width: 140}]}
                     getRowId={(r) => r.id}
                     loading={arbQuery.isFetching}
-                    slots={{ toolbar: GridToolbar, loadingOverlay: CenterOverlay }}
-                    slotProps={{ toolbar: { showQuickFilter: true, quickFilterProps: { debounceMs: 300 } } }}
+                    slots={{toolbar: GridToolbar, loadingOverlay: CenterOverlay}}
+                    slotProps={{toolbar: {showQuickFilter: true, quickFilterProps: {debounceMs: 300}}}}
                     getRowHeight={() => 64}
                     disableRowSelectionOnClick
                     density="compact"
                     rowBufferPx={300}
                     sx={{
                         height: '100%', width: '100%',
-                        '& .MuiDataGrid-cell': { fontSize: 13, py: 0.8 },
+                        '& .MuiDataGrid-cell': {fontSize: 13, py: 0.8},
                         '& .MuiDataGrid-columnHeaders': {
                             textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, fontSize: 12.5,
                             backgroundColor: '#F8FAFC', borderBottom: '1px solid #EEF2F6',
                         },
-                        '& .MuiDataGrid-row:nth-of-type(even)': { backgroundColor: '#FCFCFD' },
-                        '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': { outline: 'none' }
+                        '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: '#FCFCFD'},
+                        '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': {outline: 'none'}
                     }}
                 />
             </Box>

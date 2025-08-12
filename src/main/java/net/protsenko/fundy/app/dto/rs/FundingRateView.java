@@ -1,5 +1,7 @@
 package net.protsenko.fundy.app.dto.rs;
 
+import net.protsenko.fundy.app.utils.ExchangeLinkResolver;
+
 import java.math.BigDecimal;
 
 public record FundingRateView(
@@ -8,7 +10,8 @@ public record FundingRateView(
         String quote,
         String exchange,
         BigDecimal fundingRate,
-        long nextFundingTs
+        long nextFundingTs,
+        String link
 ) {
     public static FundingRateView of(FundingRateData fr) {
         return new FundingRateView(
@@ -17,7 +20,8 @@ public record FundingRateView(
                 fr.instrument().quoteAsset(),
                 fr.exchange().name(),
                 fr.fundingRate(),
-                fr.nextFundingTs()
+                fr.nextFundingTs(),
+                ExchangeLinkResolver.link(fr.exchange(), fr.instrument())
         );
     }
 }

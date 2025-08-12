@@ -14,7 +14,8 @@ public record ArbitrageData(
         Map<ExchangeType, Long> nextFundingTs,
         BigDecimal priceSpread,
         BigDecimal fundingSpread,
-        Decision decision
+        Decision decision,
+        Map<ExchangeType, String> links
 ) {
     @JsonProperty("token")
     public String token() {

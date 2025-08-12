@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 
+import static net.protsenko.fundy.app.utils.SymbolNormalizer.canonicalKey;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -49,19 +51,40 @@ public class BitgetExchangeClient implements ExchangeClient, ExchangeMappingSupp
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
         Map<String, BitgetTickerItem> byCanonical = cache.tickers();
-        long next = nextFundingAlignedHours(8);
-        return mapFundingByCanonical(List.of(instrument), byCanonical,
-                (inst, t) -> funding(inst, t.fundingRate(), next))
-                .stream().findFirst().orElseThrow(() ->
-                        new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
+        Map<String, BitgetFundingMeta> metaByCanonical = cache.fundingMeta();
+        return mapFundingByCanonical(List.of(instrument), byCanonical, (inst, t) -> {
+            long next = resolveNextFundingTs(inst, metaByCanonical);
+            return funding(inst, t.fundingRate(), next);
+        }).stream().findFirst().orElseThrow(() ->
+                new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override
     public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
         Map<String, BitgetTickerItem> byCanonical = cache.tickers();
-        long next = nextFundingAlignedHours(8);
-        return mapFundingByCanonical(instruments, byCanonical,
-                (inst, t) -> funding(inst, t.fundingRate(), next));
+        Map<String, BitgetFundingMeta> metaByCanonical = cache.fundingMeta();
+        return mapFundingByCanonical(instruments, byCanonical, (inst, t) -> {
+            long next = resolveNextFundingTs(inst, metaByCanonical);
+            return funding(inst, t.fundingRate(), next);
+        });
+    }
+
+    private long resolveNextFundingTs(InstrumentData inst, Map<String, BitgetFundingMeta> metaByCanonical) {
+        String key = canonicalKey(inst);
+        BitgetFundingMeta meta = metaByCanonical.get(key);
+        if (meta != null && meta.nextUpdate() != null) {
+            try {
+                return Long.parseLong(meta.nextUpdate());
+            } catch (NumberFormatException ignore) { /* fallthrough */ }
+        }
+        int interval = 8;
+        if (meta != null && meta.fundingRateInterval() != null) {
+            try {
+                interval = Math.max(1, Integer.parseInt(meta.fundingRateInterval()));
+            } catch (Exception ignore) {
+            }
+        }
+        return nextFundingAlignedHours(interval);
     }
 
     @Override

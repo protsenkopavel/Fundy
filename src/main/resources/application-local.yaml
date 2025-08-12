@@ -3,7 +3,12 @@ spring:
     name: Fundy
   cache:
     type: caffeine
-    cache-names: ex-instruments, ex-tickers, ex-funding
+    cache-names:
+      - ex-instruments
+      - ex-tickers
+      - ex-funding-meta
+    caffeine:
+      spec: maximumSize=2000,expireAfterWrite=30s
 
 server:
   port: ${SERVER_PORT_INTERNAL}

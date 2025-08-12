@@ -12,6 +12,7 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.utils.ExchangeLinkResolver;
 import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
@@ -120,6 +121,22 @@ public class ArbitrageScannerService extends BaseExchangeService {
         Map<ExchangeType, Long> nextFundingMap = list.stream()
                 .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::nextFundingTs, Math::min));
 
+        Map<ExchangeType, String> linkMap = list.stream()
+                .map(BucketEntry::ex)
+                .distinct()
+                .collect(Collectors.toMap(
+                        ex -> ex,
+                        ex -> ExchangeLinkResolver.link(
+                                ex,
+                                new InstrumentData(
+                                        instr.base(), instr.quote(),
+                                        net.protsenko.fundy.app.dto.InstrumentType.PERPETUAL,
+                                        instr.base() + instr.quote(),
+                                        ex
+                                )
+                        )
+                ));
+
         return new ArbitrageData(
                 instr,
                 Map.copyOf(priceMap),
@@ -127,7 +144,8 @@ public class ArbitrageScannerService extends BaseExchangeService {
                 Map.copyOf(nextFundingMap),
                 priceSpread,
                 fundingSpread,
-                decision
+                decision,
+                Map.copyOf(linkMap)
         );
     }
 

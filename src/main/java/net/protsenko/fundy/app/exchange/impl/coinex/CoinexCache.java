@@ -45,4 +45,15 @@ public class CoinexCache implements ExchangeMappingSupport {
                 () -> "CoinEx ticker/all error: " + (resp != null ? resp.message() : "null"));
         return indexByCanonical(resp.data().ticker().entrySet().stream().toList(), Map.Entry::getKey);
     }
+
+    @Cacheable(cacheNames = "ex-funding-meta", key = "'COINEX'", sync = true)
+    public Map<String, CoinexFundingMeta> fundingMeta() {
+        String url = cfg.getBaseUrl() + "/v2/futures/funding-rate";
+        CoinexResponse<List<CoinexFundingMeta>> resp =
+                http.get(url, cfg.getTimeout(), new TypeReference<>() {
+                });
+        require(resp != null && resp.code() == 0 && resp.data() != null,
+                () -> "CoinEx funding-rate error: " + (resp != null ? resp.message() : "null"));
+        return indexByCanonical(resp.data(), CoinexFundingMeta::market);
+    }
 }
