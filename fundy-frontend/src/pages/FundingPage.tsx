@@ -1,4 +1,3 @@
-// src/pages/FundingPage.tsx
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {Box} from '@mui/material';
@@ -8,20 +7,19 @@ import {getExchanges, getTokens, postFunding} from '@/api';
 import type {Exchange, FundingRow} from '@/api/types';
 import ScanToolbar from '@/components/ScanToolbar';
 import {fmtPct, fmtTs, labelFromCanonical, pctColor, toCanonical} from '@/lib/symbols';
+import {BASE_TIMEZONES, EUROPE_TIMEZONES} from '@/lib/timezones';
 
 function CenterOverlay() {
     return (
-        <Box
-            sx={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                bgcolor: 'background.paper',
-                opacity: 0.7,
-            }}
-        >
+        <Box sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'background.paper',
+            opacity: 0.7
+        }}>
             Загрузка…
         </Box>
     );
@@ -29,26 +27,22 @@ function CenterOverlay() {
 
 export default function FundingPage() {
     const exchangesQuery = useQuery<Exchange[]>({queryKey: ['exchanges'], queryFn: getExchanges});
-    // прогреем список токенов (не обязателен к использованию здесь)
-    useQuery({queryKey: ['tokens'], queryFn: getTokens, staleTime: 5 * 60_000});
+    useQuery({queryKey: ['tokens'], queryFn: getTokens, staleTime: 5 * 60_000}); // прогрев
+
+    const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const tzOptions = useMemo(() => {
+        const list = [tzDefault, 'UTC', ...EUROPE_TIMEZONES, ...BASE_TIMEZONES];
+        const seen = new Set<string>();
+        return list.filter(tz => !!tz && !seen.has(tz) && seen.add(tz));
+    }, [tzDefault]);
 
     const [selEx, setSelEx] = useState<Exchange[]>([]);
     const [minRate, setMinRate] = useState('');
-    const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const tzs = useMemo(
-        () =>
-            [tzDefault, 'UTC', 'Europe/Moscow', 'Europe/London', 'America/New_York', 'Asia/Shanghai', 'Asia/Tokyo'].filter(
-                (v, i, a) => a.indexOf(v) === i
-            ),
-        [tzDefault]
-    );
     const [tz, setTz] = useState(tzDefault);
 
     const [rows, setRows] = useState<any[]>([]);
     const [cols, setCols] = useState<GridColDef[]>([]);
 
-    // «Ленивая» загрузка данных по кнопке через useQuery + refetch(),
-    // чтобы кэш переживал переключение вкладок
     const lastReqRef = useRef<{ exchanges?: string[]; minFundingRate?: string; timeZone?: string } | null>(null);
 
     const funding = useQuery<FundingRow[]>({
@@ -62,7 +56,6 @@ export default function FundingPage() {
         staleTime: 5 * 60_000,
     });
 
-    // ✅ ПРАВКА: перенос логики построения колонок/строк из useMemo в useEffect
     useEffect(() => {
         const data = funding.data ?? [];
         const byCanon: Record<string, any> = {};
@@ -80,26 +73,22 @@ export default function FundingPage() {
 
         const exList = Array.from(exSet);
 
-        const base: GridColDef[] = [
-            {
-                field: 'instrument',
-                headerName: 'Инструмент',
-                width: 160,
-                sortable: true,
-                renderCell: (p) => (
-                    <Box
-                        sx={{
-                            fontFamily: '"Roboto Mono", ui-monospace',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.3,
-                        }}
-                    >
-                        {p.value}
-                    </Box>
-                ),
-            },
-        ];
+        const base: GridColDef[] = [{
+            field: 'instrument',
+            headerName: 'Инструмент',
+            width: 160,
+            sortable: true,
+            renderCell: (p) => (
+                <Box sx={{
+                    fontFamily: '"Roboto Mono", ui-monospace',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.3
+                }}>
+                    {p.value}
+                </Box>
+            )
+        }];
 
         const exCols: GridColDef[] = exList.map((ex): GridColDef => ({
             field: ex,
@@ -113,48 +102,33 @@ export default function FundingPage() {
                 const cell = params.row?.[ex];
                 if (!cell) {
                     return (
-                        <Box
-                            sx={{
-                                width: '100%',
-                                height: '100%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#98A2B3',
-                            }}
-                        >
-                            —
-                        </Box>
+                        <Box sx={{
+                            width: '100%', height: '100%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#98A2B3'
+                        }}>—</Box>
                     );
                 }
                 const color = pctColor(cell.rate);
                 return (
-                    <Box
-                        sx={{
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 0.25,
-                                lineHeight: 1.15,
-                                textAlign: 'center',
-                            }}
-                        >
+                    <Box sx={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <Box sx={{
+                            display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center',
+                            gap: 0.25, lineHeight: 1.15, textAlign: 'center'
+                        }}>
                             <Box sx={{fontWeight: 700, color}}>{fmtPct(cell.rate)}</Box>
                             <Box sx={{fontSize: 12, color: '#667085'}}>{fmtTs(cell.ts, tz)}</Box>
                         </Box>
                     </Box>
                 );
-            },
+            }
         }));
 
         setCols([...base, ...exCols]);
@@ -166,9 +140,9 @@ export default function FundingPage() {
         const minFundingRate = Number.isNaN(parsed) ? undefined : String(parsed / 100);
 
         lastReqRef.current = {
-            exchanges: selEx.length ? selEx.map((e) => e.code ?? e.name) : undefined,
+            exchanges: selEx.length ? selEx.map(e => e.code ?? e.name) : undefined,
             minFundingRate,
-            timeZone: undefined, // время форматируем на фронте
+            timeZone: undefined
         };
         funding.refetch();
     };
@@ -177,7 +151,7 @@ export default function FundingPage() {
         setSelEx([]);
         setMinRate('');
         setTz(tzDefault);
-        // кэш оставляем — пользователь увидит последнюю таблицу при возврате
+        // кэш не чистим — при возврате таблица останется
     };
 
     if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;
@@ -187,16 +161,13 @@ export default function FundingPage() {
             <ScanToolbar
                 exchanges={exchangesQuery.data ?? []}
                 timeZone={tzDefault}
-                timeZones={tzs}
+                timeZones={tzOptions}
                 loading={funding.isFetching}
                 onScan={handleScan}
                 onReset={handleReset}
-                selExchanges={selEx}
-                setSelExchanges={setSelEx}
-                minRate={minRate}
-                setMinRate={setMinRate}
-                timeZoneValue={tz}
-                setTimeZoneValue={setTz}
+                selExchanges={selEx} setSelExchanges={setSelEx}
+                minRate={minRate} setMinRate={setMinRate}
+                timeZoneValue={tz} setTimeZoneValue={setTz}
             />
 
             <Box sx={{flex: 1, minHeight: 0}}>
@@ -215,15 +186,11 @@ export default function FundingPage() {
                         height: '100%',
                         width: '100%',
                         '& .MuiDataGrid-columnHeaders': {
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.6,
-                            fontWeight: 700,
-                            fontSize: 12.5,
-                            backgroundColor: '#F8FAFC',
-                            borderBottom: '1px solid #EEF2F6',
+                            textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, fontSize: 12.5,
+                            backgroundColor: '#F8FAFC', borderBottom: '1px solid #EEF2F6'
                         },
                         '& .MuiDataGrid-row:nth-of-type(even)': {backgroundColor: '#FCFCFD'},
-                        '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': {outline: 'none'},
+                        '& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus': {outline: 'none'}
                     }}
                 />
             </Box>

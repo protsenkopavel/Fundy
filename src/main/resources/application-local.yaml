@@ -1,29 +1,9 @@
 spring:
   application:
     name: Fundy
-#  datasource:
-#    driver-class-name: org.postgresql.Driver
-#    url: jdbc:postgresql://${DB_HOST}:${DB_PORT_INTERNAL}/${DB_NAME}
-#    password: ${POSTGRES_PASSWORD}
-#    username: ${POSTGRES_USER}
-#  jpa:
-#    open-in-view: false
-#    hibernate:
-#      ddl-auto: none
-#    show-sql: true
-#  liquibase:
-#    change-log: classpath:db/changelog/db.changelog-master.yaml
-#    drop-first: false
-#    enabled: true
-#    parameters:
-#      ADMIN_CHAT_ID: ${ADMIN_CHAT_ID:0}
   cache:
     type: caffeine
     cache-names: ex-instruments, ex-tickers, ex-funding
-
-telegram.bot:
-  username: ${TELEGRAM_USERNAME}
-  token: ${TELEGRAM_TOKEN}
 
 server:
   port: ${SERVER_PORT_INTERNAL}
@@ -46,6 +26,10 @@ management:
         enabled: true
 
 fundy:
+  feedback:
+    telegram:
+      token: ${FEEDBACK_TG_TOKEN:}
+      chat-id: ${FEEDBACK_TG_CHAT_ID:}
   cache:
     exchange:
       instruments-ttl: 30m
@@ -111,5 +95,3 @@ fundy:
       base-url: https://api.hbdm.com
       timeout: 30
       enabled: true
-  notifier:
-    scan-delay: PT2M

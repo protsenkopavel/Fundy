@@ -1,21 +1,4 @@
 services:
-#  fundy-db:
-#    image: postgres:16.9
-#    ports:
-#      - "${DB_PORT_EXTERNAL}:${DB_PORT_INTERNAL}"
-#    restart: unless-stopped
-#    env_file:
-#      - .env
-#    volumes:
-#      - fundy-db-data:/var/lib/postgresql/data
-#    healthcheck:
-#      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-fundy} || exit 1" ]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 5
-#      start_period: 10s
-#    networks: [ app-net ]
-
   fundy:
     image: ${IMAGE_REGISTRY_PREFIX:-ghcr.io/protsenkopavel}/fundy:latest
     build:
@@ -23,9 +6,6 @@ services:
     ports:
       - "${SERVER_PORT_EXTERNAL}:${SERVER_PORT_INTERNAL}"
     restart: unless-stopped
-#    depends_on:
-#      fundy-db:
-#        condition: service_healthy
     env_file:
       - .env
     healthcheck:
@@ -35,9 +15,6 @@ services:
       retries: 5
       start_period: 10s
     networks: [ app-net ]
-#
-#volumes:
-#  fundy-db-data:
 
   fundy-frontend:
     image: ${IMAGE_REGISTRY_PREFIX:-ghcr.io/protsenkopavel}/fundy-frontend:latest
