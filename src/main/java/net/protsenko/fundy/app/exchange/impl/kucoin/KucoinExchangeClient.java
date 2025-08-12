@@ -9,21 +9,20 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.KucoinConfig;
 import net.protsenko.fundy.app.utils.HttpExecutor;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
-
-import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class KucoinExchangeClient implements ExchangeClient {
+public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
     private final HttpExecutor httpExecutor;
     private final KucoinConfig config;
@@ -31,94 +30,144 @@ public class KucoinExchangeClient implements ExchangeClient {
     @Override
     public List<InstrumentData> getInstruments() {
         String url = config.getBaseUrl() + "/api/v1/contracts/active";
-        KucoinContractsResponse response = httpExecutor.get(url, config.getTimeout(), KucoinContractsResponse.class);
+        KucoinContractsResponse resp = httpExecutor.get(url, config.getTimeout(), KucoinContractsResponse.class);
 
-        if (response == null || response.data() == null || response.data().isEmpty()) {
-            throw new ExchangeException("KuCoin returned empty contracts list");
-        }
+        require(resp != null && resp.data() != null && !resp.data().isEmpty(),
+                () -> "KuCoin returned empty contracts list");
 
-        return response.data().stream()
-                .filter(contract -> "Open".equalsIgnoreCase(contract.status()))
-                .map(this::toInstrument)
+        return resp.data().stream()
+                .filter(c -> "Open".equalsIgnoreCase(c.status()))
+                .map(c -> instrument(
+                        c.baseCurrency(),
+                        c.quoteCurrency(),
+                        InstrumentType.PERPETUAL,
+                        c.symbol()
+                ))
                 .toList();
     }
 
     @Override
     public TickerData getTicker(InstrumentData instrument) {
-        String symbol = ensureSymbol(instrument);
-        String tUrl = config.getBaseUrl() + "/api/v1/ticker?symbol=" + symbol;
-        KucoinTickerResponse tickerResponse = httpExecutor.get(tUrl, config.getTimeout(), KucoinTickerResponse.class);
+        String tUrl = config.getBaseUrl() + "/api/v1/allTickers";
+        KucoinAllTickersResponse tResp = httpExecutor.get(tUrl, config.getTimeout(), KucoinAllTickersResponse.class);
 
-        if (tickerResponse == null || !"200000".equals(tickerResponse.code()) || tickerResponse.data() == null) {
-            throw new ExchangeException("KuCoin ticker error: " + (tickerResponse != null ? tickerResponse.code() : "null"));
-        }
+        require(tResp != null && "200000".equals(tResp.code()) && tResp.data() != null,
+                () -> "KuCoin allTickers error");
 
-        String cUrl = config.getBaseUrl() + "/api/v1/contracts/" + symbol;
-        KucoinContractSingleResponse contractResponse = httpExecutor.get(cUrl, config.getTimeout(), KucoinContractSingleResponse.class);
+        Map<String, KucoinTickerData> byCanonicalTickers =
+                indexByCanonical(tResp.data(), KucoinTickerData::symbol);
 
-        if (contractResponse == null || contractResponse.data() == null) {
-            throw new ExchangeException("KuCoin contract not found: " + symbol);
-        }
+        String cUrl = config.getBaseUrl() + "/api/v1/contracts/active";
+        KucoinContractsResponse cResp = httpExecutor.get(cUrl, config.getTimeout(), KucoinContractsResponse.class);
 
-        return toTicker(instrument, tickerResponse.data(), contractResponse.data());
+        require(cResp != null && cResp.data() != null,
+                () -> "KuCoin contracts fetch error");
+
+        Map<String, KucoinContractItem> byCanonicalContracts =
+                indexByCanonical(cResp.data(), KucoinContractItem::symbol);
+
+        return mapTickersByCanonical(
+                List.of(instrument),
+                byCanonicalTickers.entrySet().stream().collect(Collectors.toMap(
+                        Map.Entry::getKey, Map.Entry::getValue
+                )),
+                (inst, t) -> {
+                    String key = net.protsenko.fundy.app.utils.SymbolNormalizer.canonicalKey(inst);
+                    KucoinContractItem c = byCanonicalContracts.get(key);
+                    if (c == null) return null;
+                    return ticker(
+                            inst,
+                            t.price(),
+                            t.bestBidPrice(),
+                            t.bestAskPrice(),
+                            c.highPrice(),
+                            c.lowPrice(),
+                            c.volumeOf24h()
+                    );
+                }
+        ).stream().filter(Objects::nonNull).findFirst().orElseThrow(() ->
+                new ExchangeException("[" + getExchangeType() + "] ticker not found for "
+                        + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
         String tUrl = config.getBaseUrl() + "/api/v1/allTickers";
-        KucoinAllTickersResponse tickersResponse = httpExecutor.get(tUrl, config.getTimeout(), KucoinAllTickersResponse.class);
+        KucoinAllTickersResponse tResp = httpExecutor.get(tUrl, config.getTimeout(), KucoinAllTickersResponse.class);
 
-        if (tickersResponse == null || !"200000".equals(tickersResponse.code()) || tickersResponse.data() == null) {
-            throw new ExchangeException("KuCoin allTickers error");
-        }
+        require(tResp != null && "200000".equals(tResp.code()) && tResp.data() != null,
+                () -> "KuCoin allTickers error");
 
-        var bySymbol = tickersResponse.data().stream().collect(Collectors.toMap(KucoinTickerData::symbol, Function.identity(), (a, b) -> a));
+        Map<String, KucoinTickerData> byCanonicalTickers =
+                indexByCanonical(tResp.data(), KucoinTickerData::symbol);
 
         String cUrl = config.getBaseUrl() + "/api/v1/contracts/active";
-        KucoinContractsResponse contractsResponse = httpExecutor.get(cUrl, config.getTimeout(), KucoinContractsResponse.class);
+        KucoinContractsResponse cResp = httpExecutor.get(cUrl, config.getTimeout(), KucoinContractsResponse.class);
 
-        if (contractsResponse == null || contractsResponse.data() == null) {
-            throw new ExchangeException("KuCoin contracts fetch error");
-        }
-        var contractMap = contractsResponse.data().stream().collect(Collectors.toMap(KucoinContractItem::symbol, Function.identity(), (a, b) -> a));
+        require(cResp != null && cResp.data() != null,
+                () -> "KuCoin contracts fetch error");
 
-        return instruments.stream()
-                .map(instrument -> {
-                    String sym = ensureSymbol(instrument);
-                    return toTicker(instrument, bySymbol.get(sym), contractMap.get(sym));
-                })
-                .toList();
+        Map<String, KucoinContractItem> byCanonicalContracts =
+                indexByCanonical(cResp.data(), KucoinContractItem::symbol);
+
+        return mapTickersByCanonical(
+                instruments,
+                byCanonicalTickers,
+                (inst, t) -> {
+                    String key = net.protsenko.fundy.app.utils.SymbolNormalizer.canonicalKey(inst);
+                    KucoinContractItem c = byCanonicalContracts.get(key);
+                    if (c == null) return null;
+                    return ticker(
+                            inst,
+                            t.price(),
+                            t.bestBidPrice(),
+                            t.bestAskPrice(),
+                            c.highPrice(),
+                            c.lowPrice(),
+                            c.volumeOf24h()
+                    );
+                }
+        );
     }
 
     @Override
     public FundingRateData getFundingRate(InstrumentData instrument) {
-        String symbol = ensureSymbol(instrument);
-        String url = config.getBaseUrl() + "/api/v1/contracts/" + symbol;
-        KucoinContractSingleResponse response = httpExecutor.get(url, config.getTimeout(), KucoinContractSingleResponse.class);
+        String url = config.getBaseUrl() + "/api/v1/contracts/active";
+        KucoinContractsResponse resp = httpExecutor.get(url, config.getTimeout(), KucoinContractsResponse.class);
 
-        if (response == null || response.data() == null) {
-            throw new ExchangeException("KuCoin contract not found: " + symbol);
-        }
+        require(resp != null && resp.data() != null,
+                () -> "KuCoin contracts fetch error");
 
-        return toFunding(instrument, toBigDecimal(response.data().fundingFeeRate()), response.data().nextFundingRateDateTime());
+        Map<String, KucoinContractItem> byCanonical =
+                indexByCanonical(resp.data(), KucoinContractItem::symbol);
+
+        return mapFundingByCanonical(
+                List.of(instrument),
+                byCanonical,
+                (inst, c) -> funding(inst, c.fundingFeeRate(), c.nextFundingRateDateTime())
+        ).stream().findFirst().orElseThrow(() ->
+                new ExchangeException("[" + getExchangeType() + "] funding not found for "
+                        + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override
     public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
         String url = config.getBaseUrl() + "/api/v1/contracts/active";
-        KucoinContractsResponse response = httpExecutor.get(url, config.getTimeout(), KucoinContractsResponse.class);
+        KucoinContractsResponse resp = httpExecutor.get(url, config.getTimeout(), KucoinContractsResponse.class);
 
-        if (response == null || response.data() == null) {
-            throw new ExchangeException("Contracts fetch error: null response");
-        }
+        require(resp != null && resp.data() != null,
+                () -> "KuCoin contracts fetch error");
 
-        var requested = instruments.stream().collect(Collectors.toMap(this::ensureSymbol, Function.identity(), (a, b) -> a));
+        Map<String, KucoinContractItem> byCanonical =
+                indexByCanonical(resp.data(), KucoinContractItem::symbol);
 
-        return response.data().stream()
-                .filter(contract -> "Open".equalsIgnoreCase(contract.status()))
-                .filter(contract -> requested.containsKey(contract.symbol()))
-                .map(contract -> toFunding(requested.get(contract.symbol()), toBigDecimal(contract.fundingFeeRate()), contract.nextFundingRateDateTime()))
-                .toList();
+        return mapFundingByCanonical(
+                instruments,
+                byCanonical,
+                (inst, c) -> "Open".equalsIgnoreCase(c.status())
+                        ? funding(inst, c.fundingFeeRate(), c.nextFundingRateDateTime())
+                        : null
+        ).stream().filter(Objects::nonNull).toList();
     }
 
     @Override
@@ -129,42 +178,5 @@ public class KucoinExchangeClient implements ExchangeClient {
     @Override
     public Boolean isEnabled() {
         return config.isEnabled();
-    }
-
-    private String ensureSymbol(InstrumentData instrument) {
-        return instrument.nativeSymbol() != null
-                ? instrument.nativeSymbol()
-                : instrument.baseAsset() + instrument.quoteAsset() + "M";
-    }
-
-    private InstrumentData toInstrument(KucoinContractItem contract) {
-        return new InstrumentData(
-                contract.baseCurrency(),
-                contract.quoteCurrency(),
-                InstrumentType.PERPETUAL,
-                contract.symbol(),
-                getExchangeType()
-        );
-    }
-
-    private TickerData toTicker(InstrumentData instrument, KucoinTickerData ticker, KucoinContractItem contract) {
-        return new TickerData(
-                instrument,
-                toBigDecimal(ticker.price()),
-                toBigDecimal(ticker.bestBidPrice()),
-                toBigDecimal(ticker.bestAskPrice()),
-                toBigDecimal(contract.highPrice()),
-                toBigDecimal(contract.lowPrice()),
-                toBigDecimal(contract.volumeOf24h())
-        );
-    }
-
-    private FundingRateData toFunding(InstrumentData instrument, BigDecimal fundingRate, long nextFundingTimeMs) {
-        return new FundingRateData(
-                getExchangeType(),
-                instrument,
-                fundingRate,
-                nextFundingTimeMs
-        );
     }
 }

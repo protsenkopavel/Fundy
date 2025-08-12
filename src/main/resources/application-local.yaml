@@ -62,13 +62,13 @@ fundy:
       api-key: ${KUCOIN_API_KEY}
       secret-key: ${KUCOIN_SECRET_KEY}
       base-url: https://api-futures.kucoin.com
-      timeout: 10
+      timeout: 30
       enabled: true
     bitget:
       api-key: ${BITGET_API_KEY}
       secret-key: ${BITGET_SECRET_KEY}
       base-url: https://api.bitget.com
-      timeout: 10
+      timeout: 30
       enabled: true
       product-type: umcbl
     bingx:
@@ -81,7 +81,7 @@ fundy:
       api-key: ${OKX_API_KEY}
       secret-key: ${OKX_SECRET_KEY}
       base-url: https://www.okx.com
-      timeout: 10
+      timeout: 30
       enabled: true
     gateio:
       api-key: ${GATEIO_API_KEY}
