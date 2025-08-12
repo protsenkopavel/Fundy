@@ -1,21 +1,29 @@
 package net.protsenko.fundy.app.dto.rs;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.utils.SymbolNormalizer;
 
 import java.math.BigDecimal;
 
+
 public record FundingRateData(
-        ExchangeType exchange,
-        String symbol,
+        InstrumentData instrument,
         BigDecimal fundingRate,
-        Long nextFundingTs
+        long nextFundingTs
 ) {
-    public FundingRateData(ExchangeType exchange, InstrumentData instrument, BigDecimal fundingRate, Long nextFundingTs) {
-        this(exchange, instrument.nativeSymbol() != null ? instrument.nativeSymbol() : instrument.baseAsset() + instrument.quoteAsset(),
-             fundingRate, nextFundingTs);
+    public ExchangeType exchange() {
+        return instrument.exchangeType();
     }
 
-    public String instrument() {
-        return symbol;
+    public String symbol() {
+        return instrument.nativeSymbol() != null
+                ? instrument.nativeSymbol()
+                : instrument.baseAsset() + instrument.quoteAsset();
+    }
+
+    @JsonIgnore
+    public String canonicalKey() {
+        return SymbolNormalizer.canonicalKey(instrument);
     }
 }

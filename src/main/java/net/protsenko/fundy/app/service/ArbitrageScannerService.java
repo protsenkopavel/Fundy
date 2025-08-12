@@ -3,12 +3,14 @@ package net.protsenko.fundy.app.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.BucketEntry;
+import net.protsenko.fundy.app.dto.CanonicalInstrument;
 import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
 import net.protsenko.fundy.app.dto.rs.ArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
+import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -17,9 +19,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,14 +31,12 @@ public class ArbitrageScannerService {
     private final ExchangeClientFactory factory;
 
     public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest f) {
-
-        ZoneId zone = f.zone();
         BigDecimal minFr = f.minFr();
         BigDecimal minPr = f.minPr();
         Set<ExchangeType> ex = f.effectiveExchanges();
 
         Map<String, List<BucketEntry>> bySymbol = ex.parallelStream()
-                .flatMap(e -> loadExchangeData(e, zone))
+                .flatMap(this::loadExchangeData)
                 .collect(Collectors.groupingByConcurrent(BucketEntry::symbol));
 
         return bySymbol.entrySet().parallelStream()
@@ -51,44 +48,32 @@ public class ArbitrageScannerService {
                 .toList();
     }
 
-    private Stream<BucketEntry> loadExchangeData(ExchangeType ex, ZoneId zone) {
+    private Stream<BucketEntry> loadExchangeData(ExchangeType ex) {
         try {
-            ExchangeClient client = factory.getClient(ex);
+            ExchangeClient client = client(ex);
 
             List<InstrumentData> instruments = client.getInstruments().stream()
                     .filter(i -> i.type() == InstrumentType.PERPETUAL)
                     .toList();
 
+            if (instruments.isEmpty()) return Stream.empty();
+
             Map<String, FundingRateData> fundBySymbol = client.getFundingRates(instruments).stream()
                     .collect(Collectors.toMap(
-                            fr -> key(fr.instrument()),
+                            FundingRateData::canonicalKey,
                             fr -> fr,
                             (a, b) -> a
                     ));
-
-            if (instruments.isEmpty()) return Stream.empty();
 
             List<TickerData> tickers = client.getTickers(instruments);
 
             return tickers.stream()
                     .map(tk -> {
-                        String symbol = key(tk.instrument());
+                        String symbol = net.protsenko.fundy.app.utils.SymbolNormalizer.canonicalKey(tk.instrument());
                         FundingRateData fr = fundBySymbol.get(symbol);
-
-                        BigDecimal frValue = fr == null ? null : fr.fundingRate();
-
-                        long nextFundingTs = 0L;
-                        if (fr != null) {
-                            var ldtUtc = Instant.ofEpochMilli(fr.nextFundingTs())
-                                    .atZone(ZoneOffset.UTC)
-                                    .toLocalDateTime();
-                            nextFundingTs = ldtUtc.atZone(zone)
-                                    .toInstant()
-                                    .toEpochMilli();
-                        }
-
-                        return new BucketEntry(symbol, ex,
-                                tk.lastPrice(), frValue, nextFundingTs);
+                        BigDecimal frValue = (fr == null) ? null : fr.fundingRate();
+                        long nextFundingTs = (fr == null) ? 0L : fr.nextFundingTs();
+                        return new BucketEntry(symbol, ex, tk.lastPrice(), frValue, nextFundingTs);
                     })
                     .filter(be -> be.price().compareTo(BigDecimal.ZERO) > 0);
         } catch (Exception e) {
@@ -98,11 +83,17 @@ public class ArbitrageScannerService {
     }
 
     private ArbitrageData buildView(Map.Entry<String, List<BucketEntry>> e) {
-        String symbol = e.getKey();
+        String symbol = e.getKey();                  // "BASE/QUOTE"
         List<BucketEntry> list = e.getValue();
 
         if (list.stream().map(BucketEntry::price).distinct().count() < 2) return null;
         if (list.stream().map(BucketEntry::funding).filter(Objects::nonNull).distinct().count() < 2) return null;
+
+        var parts = symbol.split("/");
+        CanonicalInstrument instr = new CanonicalInstrument(
+                parts.length > 0 ? parts[0] : "",
+                parts.length > 1 ? parts[1] : "USDT"
+        );
 
         BucketEntry maxPrice = list.stream().max(Comparator.comparing(BucketEntry::price)).orElseThrow();
         BucketEntry minPrice = list.stream().min(Comparator.comparing(BucketEntry::price)).orElseThrow();
@@ -130,7 +121,7 @@ public class ArbitrageScannerService {
                 .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::nextFundingTs, Math::min));
 
         return new ArbitrageData(
-                symbol,
+                instr,
                 Map.copyOf(priceMap),
                 Map.copyOf(frMap),
                 Map.copyOf(nextFundingMap),
@@ -169,20 +160,9 @@ public class ArbitrageScannerService {
         return bestLong == null ? null : new ArbitrageData.Decision(bestLong, bestShort);
     }
 
-    private String key(InstrumentData i) {
-        String s = (i.nativeSymbol() != null && !i.nativeSymbol().isBlank())
-                ? i.nativeSymbol()
-                : i.baseAsset() + i.quoteAsset();
-        return norm(s);
-    }
-
-    private String key(String symbol) {
-        return norm(symbol);
-    }
-
-    private String norm(String symbol) {
-        return symbol.replaceAll("[-_/]", "")
-                .replaceAll("(?i)swap$", "")
-                .toUpperCase();
+    private ExchangeClient client(ExchangeType exchangeType) {
+        ExchangeClient c = factory.getClient(exchangeType);
+        if (!c.isEnabled()) throw new ExchangeException("Биржа отключена: " + exchangeType);
+        return c;
     }
 }

@@ -51,7 +51,7 @@ public interface ExchangeMappingSupport {
     }
 
     default FundingRateData funding(InstrumentData instrument, BigDecimal rate, long nextFundingTimeMs) {
-        return new FundingRateData(getExchangeType(), instrument, rate, nextFundingTimeMs);
+        return new FundingRateData(instrument, rate, nextFundingTimeMs);
     }
 
     default FundingRateData funding(InstrumentData instrument, String rate, long nextFundingTimeMs) {

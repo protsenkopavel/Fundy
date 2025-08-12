@@ -2,6 +2,7 @@ package net.protsenko.fundy.notifier.util;
 
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.utils.ExchangeLinkResolver;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -19,7 +20,7 @@ public final class FundingMessageFormatter {
                                 ExchangeType ex,
                                 ZoneId zone) {
         String emoji = fr.fundingRate().signum() >= 0 ? "🟥" : "🟢";
-        String symbol = fr.instrument();
+        String symbol = fr.symbol();
         String baseAsset = "";
         if (symbol != null) {
             if (symbol.contains("-")) {

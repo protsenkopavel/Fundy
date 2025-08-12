@@ -1,4 +1,4 @@
-package net.protsenko.fundy.notifier.util;
+package net.protsenko.fundy.app.utils;
 
 import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
