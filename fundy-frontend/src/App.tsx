@@ -3,6 +3,7 @@ import { Routes, Route, Link } from 'react-router-dom';
 import FundingPage from '@/pages/FundingPage';
 import ArbitragePage from '@/pages/ArbitragePage';
 import FeedbackPage from '@/pages/FeedbackPage';
+import AboutPage from '@/pages/AboutPage';          // ← new
 import theme from '@/theme';
 
 export default function App() {
@@ -11,10 +12,11 @@ export default function App() {
             <CssBaseline />
 
             <AppBar position="fixed" elevation={0}>
-                <Toolbar>
+                <Toolbar sx={{gap: 1}}>
                     <Button color="inherit" component={Link} to="/funding">| Матрица фандингов |</Button>
                     <Button color="inherit" component={Link} to="/arbitrage">| Фьючерсный арбитраж |</Button>
                     <Button color="inherit" component={Link} to="/feedback">| Обратная связь |</Button>
+                    <Button color="inherit" component={Link} to="/about">| О сервисе |</Button> {/* ← new */}
                 </Toolbar>
             </AppBar>
 
@@ -24,6 +26,7 @@ export default function App() {
                     <Route path="/funding" element={<FundingPage />} />
                     <Route path="/arbitrage" element={<ArbitragePage />} />
                     <Route path="/feedback" element={<FeedbackPage />} />
+                    <Route path="/about" element={<AboutPage />} />         {/* ← new */}
                 </Routes>
             </Container>
         </ThemeProvider>

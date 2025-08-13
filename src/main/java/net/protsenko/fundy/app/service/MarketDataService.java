@@ -1,79 +1,85 @@
 package net.protsenko.fundy.app.service;
 
 import lombok.extern.slf4j.Slf4j;
+import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rq.InstrumentsRequest;
-import net.protsenko.fundy.app.dto.rq.TickerRequest;
 import net.protsenko.fundy.app.dto.rq.TickersRequest;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
-import net.protsenko.fundy.app.exchange.ExchangeClient;
+import net.protsenko.fundy.app.dto.rs.UniverseEntry;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
-import net.protsenko.fundy.app.utils.SymbolNormalizer;
+import net.protsenko.fundy.app.exchange.ExchangeType;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.*;
 import java.util.stream.Stream;
 
 @Slf4j
 @Service
 public class MarketDataService extends BaseExchangeService {
 
-    public MarketDataService(ExchangeClientFactory factory) {
+    private final UniverseService universeService;
+
+    public MarketDataService(ExchangeClientFactory factory, UniverseService universeService) {
         super(factory);
+        this.universeService = universeService;
     }
 
-    public List<InstrumentData> getAvailableInstruments(InstrumentsRequest req) {
-        return across(req.effectiveExchanges(), c -> c.getInstruments().stream()).toList();
-    }
-
-    public List<TickerData> getTicker(TickerRequest req) {
-        return req.effectiveExchanges().parallelStream()
-                .map(ex -> {
-                    try {
-                        ExchangeClient c = client(ex);
-                        var instruments = c.getInstruments();
-                        var index = instruments.stream().collect(Collectors.toMap(
-                                SymbolNormalizer::canonicalKey,
-                                Function.identity(),
-                                (a, b) -> a
-                        ));
-                        String key = (req.pair().base() + "/" + req.pair().quote()).toUpperCase(Locale.ROOT);
-                        InstrumentData target = index.get(key);
-                        if (target == null) return null;
-                        return c.getTicker(target);
-                    } catch (Exception e) {
-                        log.warn("getTicker skip {}: {}", ex, e.getMessage());
-                        return null;
-                    }
+    public List<UniverseEntry> getPerpUniverse(InstrumentsRequest req) {
+        Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(req.effectiveExchanges());
+        return uni.entrySet().stream()
+                .map(e -> {
+                    String[] p = e.getKey().split("/");
+                    String base = p.length > 0 ? p[0] : "";
+                    String quote = p.length > 1 ? p[1] : "USDT";
+                    return new UniverseEntry(base, quote, Map.copyOf(e.getValue()));
                 })
-                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(UniverseEntry::token))
                 .toList();
     }
 
     public List<TickerData> getTickers(TickersRequest req) {
+        Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(req.effectiveExchanges());
+
         return across(req.effectiveExchanges(), c -> {
             try {
-                List<InstrumentData> instruments = c.getInstruments();
-                if (instruments.isEmpty()) return Stream.empty();
+                ExchangeType ex = c.getExchangeType();
 
-                List<InstrumentData> target = instruments;
+                List<InstrumentData> targets;
                 if (req.hasPairs()) {
-                    Map<String, InstrumentData> index = instruments.stream().collect(Collectors.toMap(
-                            SymbolNormalizer::canonicalKey,
-                            Function.identity(),
-                            (a, b) -> a
-                    ));
-                    target = req.pairs().stream()
-                            .map(p -> index.get((p.base() + "/" + p.quote()).toUpperCase(Locale.ROOT)))
+                    targets = req.pairs().stream()
+                            .map(p -> {
+                                String k = (p.base() + "/" + p.quote()).toUpperCase(Locale.ROOT);
+                                String nativeSymbol = uni.getOrDefault(k, Map.of()).get(ex);
+                                if (nativeSymbol == null) return null;
+                                return new InstrumentData(
+                                        p.base().toUpperCase(Locale.ROOT),
+                                        p.quote().toUpperCase(Locale.ROOT),
+                                        InstrumentType.PERPETUAL,
+                                        nativeSymbol,
+                                        ex
+                                );
+                            })
+                            .filter(Objects::nonNull)
+                            .toList();
+                } else {
+                    targets = uni.entrySet().stream()
+                            .map(e -> {
+                                String nativeSymbol = e.getValue().get(ex);
+                                if (nativeSymbol == null) return null;
+                                String[] p = e.getKey().split("/");
+                                String base = p.length > 0 ? p[0] : "";
+                                String quote = p.length > 1 ? p[1] : "USDT";
+                                return new InstrumentData(base, quote,
+                                        InstrumentType.PERPETUAL,
+                                        nativeSymbol, ex);
+                            })
                             .filter(Objects::nonNull)
                             .toList();
                 }
-                return c.getTickers(target).stream();
+
+                if (targets.isEmpty()) return Stream.empty();
+                return c.getTickers(targets).stream();
             } catch (Exception e) {
                 log.warn("getTickers skip {}: {}", c.getExchangeType(), e.getMessage());
                 return Stream.empty();

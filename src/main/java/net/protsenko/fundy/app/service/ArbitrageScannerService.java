@@ -31,15 +31,21 @@ import java.util.stream.Stream;
 public class ArbitrageScannerService extends BaseExchangeService {
     private static final MathContext MC = new MathContext(8, RoundingMode.HALF_UP);
 
-    public ArbitrageScannerService(ExchangeClientFactory factory) {
+    private final UniverseService universeService;
+
+    public ArbitrageScannerService(ExchangeClientFactory factory, UniverseService universeService) {
         super(factory);
+        this.universeService = universeService;
     }
 
     public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest f) {
         BigDecimal minFr = f.minFr();
         BigDecimal minPr = f.minPr();
 
-        Map<String, List<BucketEntry>> bySymbol = across(f.effectiveExchanges(), this::loadExchangeData)
+        Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(f.effectiveExchanges());
+
+        Map<String, List<BucketEntry>> bySymbol = across(f.effectiveExchanges(),
+                c -> loadExchangeData(c, uni))
                 .collect(Collectors.groupingByConcurrent(BucketEntry::symbol));
 
         return bySymbol.entrySet().parallelStream()
@@ -51,10 +57,23 @@ public class ArbitrageScannerService extends BaseExchangeService {
                 .toList();
     }
 
-    private Stream<BucketEntry> loadExchangeData(ExchangeClient client) {
+    private InstrumentData makeInstr(String canonicalKey, String nativeSymbol, ExchangeType ex) {
+        String[] p = canonicalKey.split("/");
+        String base = p.length > 0 ? p[0] : "";
+        String quote = p.length > 1 ? p[1] : "USDT";
+        return new InstrumentData(base, quote, InstrumentType.PERPETUAL, nativeSymbol, ex);
+    }
+
+    private Stream<BucketEntry> loadExchangeData(ExchangeClient client, Map<String, Map<ExchangeType, String>> uni) {
         try {
-            List<InstrumentData> instruments = client.getInstruments().stream()
-                    .filter(i -> i.type() == InstrumentType.PERPETUAL)
+            ExchangeType ex = client.getExchangeType();
+
+            List<InstrumentData> instruments = uni.entrySet().stream()
+                    .map(e -> {
+                        String nativeSymbol = e.getValue().get(ex);
+                        return nativeSymbol == null ? null : makeInstr(e.getKey(), nativeSymbol, ex);
+                    })
+                    .filter(Objects::nonNull)
                     .toList();
 
             if (instruments.isEmpty()) return Stream.empty();
@@ -130,7 +149,7 @@ public class ArbitrageScannerService extends BaseExchangeService {
                                 ex,
                                 new InstrumentData(
                                         instr.base(), instr.quote(),
-                                        net.protsenko.fundy.app.dto.InstrumentType.PERPETUAL,
+                                        InstrumentType.PERPETUAL,
                                         instr.base() + instr.quote(),
                                         ex
                                 )

@@ -53,8 +53,7 @@ export default function ArbitragePage() {
         if (exParam) {
             const codes = exParam.split(',').map(s => s.trim()).filter(Boolean);
             const byCode = new Map(exchangesQuery.data.map(e => [String(e.code ?? e.name), e] as const));
-            const selected = codes.map(c => byCode.get(c)).filter(Boolean) as Exchange[];
-            setSelExchanges(selected);
+            setSelExchanges(codes.map(c => byCode.get(c)).filter(Boolean) as Exchange[]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [!!exchangesQuery.data]);
@@ -114,7 +113,7 @@ export default function ArbitragePage() {
                 priceSpread: it?.priceSpread,
                 fundingSpread: it?.fundingSpread,
                 decision: it?.decision,
-                __links: it?.links || {}, // карта ссылок по биржам
+                __links: it?.links || {},
             };
             exList.forEach(ex => {
                 row[ex] = {
@@ -178,7 +177,7 @@ export default function ArbitragePage() {
             },
             {
                 field: 'decision',
-                headerName: 'Решение',
+                headerName: 'Комбинация',
                 minWidth: 220,
                 flex: 0.9,
                 align: 'center',
@@ -188,35 +187,21 @@ export default function ArbitragePage() {
                     const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
                     if (!d || (!d.longEx && !d.shortEx)) return <Box sx={{color: 'text.secondary'}}>—</Box>;
 
-                    const chipBase = {
-                        px: 1, py: 0.5, borderRadius: 2, fontSize: 12, fontWeight: 800,
-                        whiteSpace: 'nowrap' as const,
-                        width: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        textAlign: 'center' as const, overflow: 'hidden', textOverflow: 'ellipsis',
-                    };
+                    const tag = (text: string, color: string) => (
+                        <Box sx={{
+                            px: 0.5, fontSize: 12, fontWeight: 900,
+                            color, border: 'none !important', background: 'transparent',
+                            textTransform: 'uppercase', whiteSpace: 'nowrap',
+                            width: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            {text}
+                        </Box>
+                    );
 
                     return (
                         <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
-                            {d.longEx && (
-                                <Box sx={{
-                                    ...chipBase,
-                                    border: '1px solid rgba(34,197,94,0.35)',
-                                    bgcolor: 'rgba(34,197,94,0.12)',
-                                    color: '#22c55e'
-                                }} title={`LONG ${d.longEx}`}>
-                                    LONG {d.longEx}
-                                </Box>
-                            )}
-                            {d.shortEx && (
-                                <Box sx={{
-                                    ...chipBase,
-                                    border: '1px solid rgba(239,68,68,0.35)',
-                                    bgcolor: 'rgba(239,68,68,0.12)',
-                                    color: '#ef4444'
-                                }} title={`SHORT ${d.shortEx}`}>
-                                    SHORT {d.shortEx}
-                                </Box>
-                            )}
+                            {d.longEx && tag(`LONG ${d.longEx}`, '#22c55e')}
+                            {d.shortEx && tag(`SHORT ${d.shortEx}`, '#ef4444')}
                         </Box>
                     );
                 }
@@ -242,19 +227,13 @@ export default function ArbitragePage() {
 
                 const inner = (
                     <Box sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 0.25,
-                        lineHeight: 1.15,
-                        whiteSpace: 'nowrap'
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 0.25, lineHeight: 1.15, whiteSpace: 'nowrap'
                     }}>
                         <Box sx={{fontWeight: 700}}>{fmtPrice(cell.price)}</Box>
-                        <Box sx={{
-                            fontSize: 12,
-                            color: pctColor(cell.fundingRate),
-                            fontWeight: 600
-                        }}>{fmtPct(cell.fundingRate)}</Box>
+                        <Box sx={{fontSize: 12, color: pctColor(cell.fundingRate), fontWeight: 600}}>
+                            {fmtPct(cell.fundingRate)}
+                        </Box>
                         <Box sx={{fontSize: 11, color: 'text.secondary'}}>{fmtTs(cell.nextFundingTs, timeZone)}</Box>
                     </Box>
                 );
@@ -268,22 +247,13 @@ export default function ArbitragePage() {
                         justifyContent: 'center'
                     }}>
                         {cell.link
-                            ? (
-                                <Box
-                                    component="a"
-                                    href={cell.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    sx={{
-                                        textDecoration: 'none',
-                                        color: 'inherit',
-                                        '&:hover': {textDecoration: 'underline'}
-                                    }}
-                                    title={`Открыть на ${ex}`}
-                                >
-                                    {inner}
-                                </Box>
-                            )
+                            ? <Box component="a" href={cell.link} target="_blank" rel="noopener noreferrer"
+                                   sx={{
+                                       textDecoration: 'none',
+                                       color: 'inherit',
+                                       '&:hover': {textDecoration: 'underline'}
+                                   }}
+                                   title={`Открыть на ${ex}`}>{inner}</Box>
                             : inner}
                     </Box>
                 );

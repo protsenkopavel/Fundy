@@ -6,7 +6,6 @@ import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
-import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
@@ -34,17 +33,6 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
     }
 
     @Override
-    public TickerData getTicker(InstrumentData instrument) {
-        Map<String, Map.Entry<String, CoinexTickerItem>> byCanonical = cache.allTickers();
-        return mapTickersByCanonical(List.of(instrument), byCanonical,
-                (inst, e) -> {
-                    var t = e.getValue();
-                    return ticker(inst, t.last(), t.buy(), t.sell(), t.high(), t.low(), t.vol());
-                }).stream().findFirst().orElseThrow(() ->
-                new ExchangeException("[" + getExchangeType() + "] ticker not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
-    }
-
-    @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
         Map<String, Map.Entry<String, CoinexTickerItem>> byCanonical = cache.allTickers();
         return mapTickersByCanonical(instruments, byCanonical,
@@ -52,18 +40,6 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
                     var t = e.getValue();
                     return ticker(inst, t.last(), t.buy(), t.sell(), t.high(), t.low(), t.vol());
                 });
-    }
-
-    @Override
-    public FundingRateData getFundingRate(InstrumentData instrument) {
-        Map<String, Map.Entry<String, CoinexTickerItem>> byCanonical = cache.allTickers();
-        Map<String, CoinexFundingMeta> metaByCanonical = cache.fundingMeta();
-        return mapFundingByCanonical(List.of(instrument), byCanonical, (inst, e) -> {
-            var t = e.getValue();
-            long next = resolveNextFundingTs(inst, t, metaByCanonical);
-            return funding(inst, t.fundingRateLast(), next);
-        }).stream().findFirst().orElseThrow(() ->
-                new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override

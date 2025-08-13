@@ -6,7 +6,6 @@ import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
-import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
@@ -33,30 +32,10 @@ public class BitgetExchangeClient implements ExchangeClient, ExchangeMappingSupp
     }
 
     @Override
-    public TickerData getTicker(InstrumentData instrument) {
-        Map<String, BitgetTickerItem> byCanonical = cache.tickers();
-        return mapTickersByCanonical(List.of(instrument), byCanonical,
-                (inst, t) -> ticker(inst, t.last(), t.bestBid(), t.bestAsk(), t.high24h(), t.low24h(), t.baseVolume()))
-                .stream().findFirst().orElseThrow(() ->
-                        new ExchangeException("[" + getExchangeType() + "] ticker not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
-    }
-
-    @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
         Map<String, BitgetTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.last(), t.bestBid(), t.bestAsk(), t.high24h(), t.low24h(), t.baseVolume()));
-    }
-
-    @Override
-    public FundingRateData getFundingRate(InstrumentData instrument) {
-        Map<String, BitgetTickerItem> byCanonical = cache.tickers();
-        Map<String, BitgetFundingMeta> metaByCanonical = cache.fundingMeta();
-        return mapFundingByCanonical(List.of(instrument), byCanonical, (inst, t) -> {
-            long next = resolveNextFundingTs(inst, metaByCanonical);
-            return funding(inst, t.fundingRate(), next);
-        }).stream().findFirst().orElseThrow(() ->
-                new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override

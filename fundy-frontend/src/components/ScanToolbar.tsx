@@ -1,41 +1,27 @@
-import {useEffect, useState} from 'react';
-import {Autocomplete, Box, Button, Checkbox, CircularProgress, FormControlLabel, TextField} from '@mui/material';
-import DownloadIcon from '@mui/icons-material/Download';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
-import type {Exchange, Token} from '@/api/types';
+import {Autocomplete, Box, Button, CircularProgress, TextField} from '@mui/material';
+import type {Exchange} from '@/api/types';
 
 type Props = {
     exchanges: Exchange[];
-    tokens?: Token[];
-
-    // таймзоны
-    timeZone: string;           // дефолтная/локальная
-    timeZones: string[];        // список вариантов
 
     loading: boolean;
     onScan: () => void;
     onReset: () => void;
-    onExportCsv?: () => void;   // если не передавать — кнопки не будет
+    onExportCsv?: () => void;
 
     selExchanges: Exchange[]; setSelExchanges: (v: Exchange[]) => void;
+
+    // доп. фильтры (страницы сами решают передавать)
     minRate?: string; setMinRate?: (v: string) => void;
     minPriceSpread?: string; setMinPriceSpread?: (v: string) => void;
 
+    // тайм-зоны
+    timeZone: string;
+    timeZones: string[];
     timeZoneValue: string; setTimeZoneValue: (v: string) => void;
 };
 
 export default function ScanToolbar(p: Props) {
-    const [auto, setAuto] = useState(false);
-    const [period, setPeriod] = useState(15);
-
-    useEffect(() => {
-        if (!auto) return;
-        p.onScan();
-        const id = setInterval(p.onScan, Math.max(5, period) * 1000);
-        return () => clearInterval(id);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [auto, period]);
-
     return (
         <Box sx={{display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0}}>
             <Autocomplete
@@ -64,7 +50,6 @@ export default function ScanToolbar(p: Props) {
                 />
             )}
 
-            {/* Таймзона с поиском */}
             <Autocomplete
                 options={p.timeZones}
                 value={p.timeZoneValue}
@@ -77,23 +62,10 @@ export default function ScanToolbar(p: Props) {
             <Button variant="contained" onClick={p.onScan} disabled={p.loading}>
                 {p.loading ? <CircularProgress size={24}/> : 'Сканировать'}
             </Button>
-            <Button variant="outlined" onClick={p.onReset} startIcon={<RestartAltIcon/>}
-                    disabled={p.loading}>Сброс</Button>
+            <Button variant="outlined" onClick={p.onReset} disabled={p.loading}>Сброс</Button>
 
             {p.onExportCsv && (
-                <Button variant="outlined" onClick={p.onExportCsv} startIcon={<DownloadIcon/>}
-                        disabled={p.loading}>CSV</Button>
-            )}
-
-            <FormControlLabel
-                control={<Checkbox checked={auto} onChange={(_, v) => setAuto(v)}/>}
-                label="Автообновление"
-            />
-            {auto && (
-                <TextField
-                    label="Период, сек" size="small" type="number" sx={{width: 120}}
-                    value={period} onChange={e => setPeriod(Math.max(5, Number(e.target.value) || 15))}
-                />
+                <Button variant="outlined" onClick={p.onExportCsv} disabled={p.loading}>CSV</Button>
             )}
         </Box>
     );

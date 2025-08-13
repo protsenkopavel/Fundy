@@ -6,7 +6,6 @@ import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
-import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
@@ -33,19 +32,6 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
     }
 
     @Override
-    public TickerData getTicker(InstrumentData instrument) {
-        Map<String, KucoinTickerData> byTickers = cache.tickers();
-        Map<String, KucoinContractItem> byContracts = cache.contracts();
-        return mapTickersByCanonical(List.of(instrument), byTickers, (inst, t) -> {
-            String key = SymbolNormalizer.canonicalKey(inst);
-            KucoinContractItem c = byContracts.get(key);
-            if (c == null) return null;
-            return ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(), c.highPrice(), c.lowPrice(), c.volumeOf24h());
-        }).stream().filter(Objects::nonNull).findFirst().orElseThrow(() ->
-                new ExchangeException("[" + getExchangeType() + "] ticker not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
-    }
-
-    @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
         Map<String, KucoinTickerData> byTickers = cache.tickers();
         Map<String, KucoinContractItem> byContracts = cache.contracts();
@@ -55,15 +41,6 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
             if (c == null) return null;
             return ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(), c.highPrice(), c.lowPrice(), c.volumeOf24h());
         });
-    }
-
-    @Override
-    public FundingRateData getFundingRate(InstrumentData instrument) {
-        Map<String, KucoinContractItem> byContracts = cache.contracts();
-        return mapFundingByCanonical(List.of(instrument), byContracts,
-                (inst, c) -> funding(inst, c.fundingFeeRate(), c.nextFundingRateDateTime()))
-                .stream().findFirst().orElseThrow(() ->
-                        new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override

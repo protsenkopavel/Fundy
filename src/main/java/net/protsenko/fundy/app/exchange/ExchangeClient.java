@@ -9,11 +9,7 @@ import java.util.List;
 public interface ExchangeClient {
     List<InstrumentData> getInstruments();
 
-    TickerData getTicker(InstrumentData instrument);
-
     List<TickerData> getTickers(List<InstrumentData> instruments);
-
-    FundingRateData getFundingRate(InstrumentData instrument);
 
     List<FundingRateData> getFundingRates(List<InstrumentData> instruments);
 

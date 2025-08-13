@@ -6,7 +6,6 @@ import net.protsenko.fundy.app.dto.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
-import net.protsenko.fundy.app.exception.ExchangeException;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
@@ -34,30 +33,11 @@ public class BybitExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     }
 
     @Override
-    public TickerData getTicker(InstrumentData instrument) {
-        Map<String, BybitTickerItem> byCanonical = cache.tickers();
-        return mapTickersByCanonical(List.of(instrument), byCanonical,
-                (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
-                        t.highPrice24h(), t.lowPrice24h(), t.volume24h()))
-                .stream().findFirst().orElseThrow(() ->
-                        new ExchangeException("[" + getExchangeType() + "] ticker not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
-    }
-
-    @Override
     public List<TickerData> getTickers(List<InstrumentData> instruments) {
         Map<String, BybitTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
                         t.highPrice24h(), t.lowPrice24h(), t.volume24h()));
-    }
-
-    @Override
-    public FundingRateData getFundingRate(InstrumentData instrument) {
-        Map<String, BybitTickerItem> byCanonical = cache.tickers();
-        return mapFundingByCanonical(List.of(instrument), byCanonical,
-                (inst, t) -> funding(inst, t.fundingRate(), toLong(t.nextFundingTime())))
-                .stream().findFirst().orElseThrow(() ->
-                        new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
 
     @Override
