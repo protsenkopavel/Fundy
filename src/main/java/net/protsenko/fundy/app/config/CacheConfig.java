@@ -35,11 +35,17 @@ public class CacheConfig {
                 .maximumSize(p.getFundingMaxSize())
                 .recordStats();
 
+        Caffeine<Object, Object> universe = Caffeine.newBuilder()
+                .expireAfterWrite(java.time.Duration.ofHours(24))
+                .maximumSize(10)
+                .recordStats();
+
         manager.setCaches(List.of(
                 new CaffeineCache("ex-instruments", instruments.build()),
                 new CaffeineCache("ex-tickers", tickers.build()),
                 new CaffeineCache("ex-funding", funding.build()),
-                new CaffeineCache("ex-funding-meta", funding.build())
+                new CaffeineCache("ex-funding-meta", funding.build()),
+                new CaffeineCache("universe-perp-24h", universe.build())
         ));
         return manager;
     }
