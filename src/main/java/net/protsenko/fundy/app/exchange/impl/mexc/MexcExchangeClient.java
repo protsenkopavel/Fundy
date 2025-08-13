@@ -55,7 +55,7 @@ public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSuppor
     public FundingRateData getFundingRate(InstrumentData instrument) {
         Map<String, MexcFundingItem> byCanonical = cache.funding();
         return mapFundingByCanonical(List.of(instrument), byCanonical,
-                (inst, f) -> funding(inst, f.fundingRate(), toLong(f.fundingTime())))
+                (inst, f) -> funding(inst, f.fundingRate(), toLong(f.nextSettleTime())))
                 .stream().findFirst().orElseThrow(() ->
                         new ExchangeException("[" + getExchangeType() + "] funding not found for " + instrument.baseAsset() + "/" + instrument.quoteAsset()));
     }
@@ -64,7 +64,7 @@ public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSuppor
     public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
         Map<String, MexcFundingItem> byCanonical = cache.funding();
         return mapFundingByCanonical(instruments, byCanonical,
-                (inst, f) -> funding(inst, f.fundingRate(), toLong(f.fundingTime())));
+                (inst, f) -> funding(inst, f.fundingRate(), toLong(f.nextSettleTime())));
     }
 
     @Override
