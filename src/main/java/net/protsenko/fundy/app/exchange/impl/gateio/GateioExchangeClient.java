@@ -23,7 +23,7 @@ public class GateioExchangeClient implements ExchangeClient, ExchangeMappingSupp
     private final GateioCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.contracts().values().stream()
                 .filter(c -> "trading".equalsIgnoreCase(c.status()))
                 .map(c -> {
@@ -37,7 +37,7 @@ public class GateioExchangeClient implements ExchangeClient, ExchangeMappingSupp
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, GateioTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.last(), t.highestBid(), t.lowestAsk(),
@@ -54,6 +54,18 @@ public class GateioExchangeClient implements ExchangeClient, ExchangeMappingSupp
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.GATEIO;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for Gate.io
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for Gate.io
+        return List.of();
     }
 
     @Override

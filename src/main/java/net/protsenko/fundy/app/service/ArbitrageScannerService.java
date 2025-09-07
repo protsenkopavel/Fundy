@@ -75,7 +75,7 @@ public class ArbitrageScannerService extends BaseExchangeService {
                 return Stream.empty();
             }
 
-            Map<String, TickerData> tickers = client.getTickers(instruments).stream()
+            Map<String, TickerData> tickers = client.getFuturesTickers(instruments).stream()
                     .collect(Collectors.toMap(t -> t.instrument().nativeSymbol(), Function.identity()));
 
             Map<String, FundingRateData> fundingRates = client.getFundingRates(instruments).stream()

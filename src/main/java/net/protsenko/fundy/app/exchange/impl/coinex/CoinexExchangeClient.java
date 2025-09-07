@@ -24,7 +24,7 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
     private final CoinexCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.contracts().stream()
                 .filter(CoinexContractItem::available)
                 .filter(i -> i.type() == 1)
@@ -33,7 +33,7 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, Map.Entry<String, CoinexTickerItem>> byCanonical = cache.allTickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, e) -> {
@@ -97,6 +97,18 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.COINEX;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for Coinex
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for Coinex
+        return List.of();
     }
 
     @Override

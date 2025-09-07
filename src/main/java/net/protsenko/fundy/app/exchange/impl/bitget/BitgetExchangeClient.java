@@ -24,7 +24,7 @@ public class BitgetExchangeClient implements ExchangeClient, ExchangeMappingSupp
     private final BitgetCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.contracts().stream()
                 .filter(c -> "normal".equalsIgnoreCase(c.symbolStatus()))
                 .map(c -> instrument(c.baseCoin(), c.quoteCoin(), InstrumentType.PERPETUAL, c.symbol()))
@@ -32,7 +32,7 @@ public class BitgetExchangeClient implements ExchangeClient, ExchangeMappingSupp
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, BitgetTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.last(), t.bestBid(), t.bestAsk(), t.high24h(), t.low24h(), t.baseVolume()));
@@ -69,6 +69,18 @@ public class BitgetExchangeClient implements ExchangeClient, ExchangeMappingSupp
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.BITGET;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for Bitget
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for Bitget
+        return List.of();
     }
 
     @Override

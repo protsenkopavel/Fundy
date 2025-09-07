@@ -22,7 +22,7 @@ public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     private final BingxCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.contracts().stream()
                 .filter(c -> c.status() == 1)
                 .map(c -> instrument(c.asset(), c.currency(), InstrumentType.PERPETUAL, c.symbol()))
@@ -30,7 +30,7 @@ public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, BingxTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.lastPrice(), t.bestBid(), t.bestAsk(), t.high24h(), t.low24h(), t.volume24h()));
@@ -46,6 +46,18 @@ public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.BINGX;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for BingX
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for BingX
+        return List.of();
     }
 
     @Override

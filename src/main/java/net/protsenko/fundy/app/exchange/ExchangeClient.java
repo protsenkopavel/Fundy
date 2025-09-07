@@ -7,11 +7,15 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import java.util.List;
 
 public interface ExchangeClient {
-    List<InstrumentData> getInstruments();
+    List<InstrumentData> getFuturesInstruments();
 
-    List<TickerData> getTickers(List<InstrumentData> instruments);
+    List<TickerData> getFuturesTickers(List<InstrumentData> instruments);
 
     List<FundingRateData> getFundingRates(List<InstrumentData> instruments);
+
+    List<InstrumentData> getSpotInstruments();
+
+    List<TickerData> getSpotTickers(List<InstrumentData> instruments);
 
     ExchangeType getExchangeType();
 

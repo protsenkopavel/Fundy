@@ -25,7 +25,7 @@ public class HtxExchangeClient implements ExchangeClient, ExchangeMappingSupport
     private final HtxCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.contracts().stream()
                 .filter(c -> c.contractStatus() == 1)
                 .map(c -> {
@@ -39,7 +39,7 @@ public class HtxExchangeClient implements ExchangeClient, ExchangeMappingSupport
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, HtxBatchResp.Tick> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, String.valueOf(t.close()),
@@ -56,6 +56,18 @@ public class HtxExchangeClient implements ExchangeClient, ExchangeMappingSupport
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.HTX;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for HTX
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for HTX
+        return List.of();
     }
 
     @Override

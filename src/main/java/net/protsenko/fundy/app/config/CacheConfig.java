@@ -45,7 +45,10 @@ public class CacheConfig {
                 new CaffeineCache("ex-tickers", tickers.build()),
                 new CaffeineCache("ex-funding", funding.build()),
                 new CaffeineCache("ex-funding-meta", funding.build()),
-                new CaffeineCache("universe-perp-24h", universe.build())
+                new CaffeineCache("ex-spot-instruments", instruments.build()),
+                new CaffeineCache("ex-spot-tickers", tickers.build()),
+                new CaffeineCache("universe-perp-24h", universe.build()),
+                new CaffeineCache("universe-spot-24h", universe.build())
         ));
         return manager;
     }

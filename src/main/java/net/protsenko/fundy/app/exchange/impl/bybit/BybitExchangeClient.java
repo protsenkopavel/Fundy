@@ -25,7 +25,7 @@ public class BybitExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     private final BybitCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.instruments().stream()
                 .filter(i -> "Trading".equalsIgnoreCase(i.status()))
                 .map(i -> instrument(i.baseCoin(), i.quoteCoin(), InstrumentType.PERPETUAL, i.symbol()))
@@ -33,7 +33,7 @@ public class BybitExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, BybitTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
@@ -50,6 +50,22 @@ public class BybitExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.BYBIT;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        return cache.spotInstruments().stream()
+                .filter(i -> "Trading".equalsIgnoreCase(i.status()))
+                .map(i -> instrument(i.baseCoin(), i.quoteCoin(), InstrumentType.SPOT, i.symbol()))
+                .toList();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        Map<String, BybitTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
+                        t.highPrice24h(), t.lowPrice24h(), t.volume24h()));
     }
 
     @Override

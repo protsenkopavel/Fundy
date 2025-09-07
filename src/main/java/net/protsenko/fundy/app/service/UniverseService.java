@@ -28,7 +28,7 @@ public class UniverseService extends BaseExchangeService {
         Stream<InstrumentData> stream = scope.stream().flatMap(ex -> {
             try {
                 ExchangeClient c = client(ex);
-                return c.getInstruments().stream();
+                return c.getFuturesInstruments().stream();
             } catch (Exception e) {
                 return Stream.empty();
             }
@@ -36,6 +36,30 @@ public class UniverseService extends BaseExchangeService {
 
         Map<String, Map<ExchangeType, String>> raw = new TreeMap<>();
         stream.filter(i -> i.type() == InstrumentType.PERPETUAL).forEach(i -> {
+            String key = SymbolNormalizer.canonicalKey(i);
+            raw.computeIfAbsent(key, k -> new EnumMap<>(ExchangeType.class))
+                    .put(i.exchangeType(), i.nativeSymbol());
+        });
+
+        return UniverseNormalizer.normalize(raw);
+    }
+
+    @Cacheable(cacheNames = "universe-spot-24h", key = "#exchanges == null ? 'ALL' : #exchanges", sync = true)
+    public Map<String, Map<ExchangeType, String>> spotUniverse(Set<ExchangeType> exchanges) {
+        Set<ExchangeType> scope = (exchanges == null || exchanges.isEmpty())
+                ? EnumSet.allOf(ExchangeType.class) : EnumSet.copyOf(exchanges);
+
+        Stream<InstrumentData> stream = scope.stream().flatMap(ex -> {
+            try {
+                ExchangeClient c = client(ex);
+                return c.getSpotInstruments().stream();
+            } catch (Exception e) {
+                return Stream.empty();
+            }
+        });
+
+        Map<String, Map<ExchangeType, String>> raw = new TreeMap<>();
+        stream.filter(i -> i.type() == InstrumentType.SPOT).forEach(i -> {
             String key = SymbolNormalizer.canonicalKey(i);
             raw.computeIfAbsent(key, k -> new EnumMap<>(ExchangeType.class))
                     .put(i.exchangeType(), i.nativeSymbol());

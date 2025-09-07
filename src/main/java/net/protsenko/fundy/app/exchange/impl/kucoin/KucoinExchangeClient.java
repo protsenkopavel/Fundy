@@ -24,7 +24,7 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
     private final KucoinCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.contracts().values().stream()
                 .filter(c -> "Open".equalsIgnoreCase(c.status()))
                 .map(c -> instrument(c.baseCurrency(), c.quoteCurrency(), InstrumentType.PERPETUAL, c.symbol()))
@@ -32,7 +32,7 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, KucoinTickerData> byTickers = cache.tickers();
         Map<String, KucoinContractItem> byContracts = cache.contracts();
         return mapTickersByCanonical(instruments, byTickers, (inst, t) -> {
@@ -54,6 +54,18 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.KUCOIN;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for KuCoin
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for KuCoin
+        return List.of();
     }
 
     @Override

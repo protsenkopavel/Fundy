@@ -25,7 +25,7 @@ public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSuppor
     private final MexcCache cache;
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.instruments().stream()
                 .filter(i -> i.state() == 0)
                 .map(i -> instrument(i.baseCoin(), i.quoteCoin(), InstrumentType.PERPETUAL, i.symbol()))
@@ -33,7 +33,7 @@ public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSuppor
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, MexcTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
@@ -50,6 +50,18 @@ public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSuppor
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.MEXC;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for MEXC
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for MEXC
+        return List.of();
     }
 
     @Override

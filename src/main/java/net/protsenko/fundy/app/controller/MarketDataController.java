@@ -32,6 +32,16 @@ public class MarketDataController {
         return service.getTickers(tickersRequest);
     }
 
+    @PostMapping("/spot/instruments")
+    public List<UniverseEntry> spotInstruments(@Valid @RequestBody InstrumentsRequest req) {
+        return service.getSpotUniverse(req);
+    }
+
+    @PostMapping("/spot/tickers")
+    public List<TickerData> spotTickers(@Valid @RequestBody TickersRequest tickersRequest) {
+        return service.getSpotTickers(tickersRequest);
+    }
+
     @GetMapping("/exchanges")
     public List<ExchangeData> exchanges() {
         return Arrays.stream(ExchangeType.values())

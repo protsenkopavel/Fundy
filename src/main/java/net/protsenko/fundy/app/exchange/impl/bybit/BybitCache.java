@@ -40,4 +40,22 @@ public class BybitCache implements ExchangeMappingSupport {
                 () -> "Bybit tickers error: " + (resp != null ? resp.retMsg() : "null response"));
         return indexByCanonical(resp.result().list(), BybitTickerItem::symbol);
     }
+
+    @Cacheable(cacheNames = "ex-spot-instruments", key = "'BYBIT'", sync = true)
+    public List<BybitInstrumentItem> spotInstruments() {
+        String url = cfg.getBaseUrl() + "/v5/market/instruments-info?category=spot";
+        BybitInstrumentsResponse resp = http.get(url, cfg.getTimeout(), BybitInstrumentsResponse.class);
+        require(resp != null && resp.retCode() == 0 && resp.result() != null,
+                () -> "Bybit spot instruments error: " + (resp != null ? resp.retMsg() : "null response"));
+        return resp.result().list();
+    }
+
+    @Cacheable(cacheNames = "ex-spot-tickers", key = "'BYBIT'", sync = true)
+    public Map<String, BybitTickerItem> spotTickers() {
+        String url = cfg.getBaseUrl() + "/v5/market/tickers?category=spot";
+        BybitTickerResponse resp = http.get(url, cfg.getTimeout(), BybitTickerResponse.class);
+        require(resp != null && resp.retCode() == 0 && resp.result() != null,
+                () -> "Bybit spot tickers error: " + (resp != null ? resp.retMsg() : "null response"));
+        return indexByCanonical(resp.result().list(), BybitTickerItem::symbol);
+    }
 }

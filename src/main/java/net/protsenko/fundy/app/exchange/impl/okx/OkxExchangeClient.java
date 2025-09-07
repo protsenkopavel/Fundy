@@ -29,7 +29,7 @@ public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport
     private final ExecutorService executor = Executors.newFixedThreadPool(10);
 
     @Override
-    public List<InstrumentData> getInstruments() {
+    public List<InstrumentData> getFuturesInstruments() {
         return cache.instruments().stream()
                 .filter(i -> "SWAP".equalsIgnoreCase(i.instType()))
                 .filter(i -> "live".equalsIgnoreCase(i.state()))
@@ -43,7 +43,7 @@ public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport
     }
 
     @Override
-    public List<TickerData> getTickers(List<InstrumentData> instruments) {
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, OkxTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.last(), t.bidPx(), t.askPx(), t.high24h(), t.low24h(), t.vol24h()));
@@ -70,6 +70,18 @@ public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport
     @Override
     public ExchangeType getExchangeType() {
         return ExchangeType.OKX;
+    }
+
+    @Override
+    public List<InstrumentData> getSpotInstruments() {
+        // TODO: Implement spot instruments for OKX
+        return List.of();
+    }
+
+    @Override
+    public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
+        // TODO: Implement spot tickers for OKX
+        return List.of();
     }
 
     @Override
