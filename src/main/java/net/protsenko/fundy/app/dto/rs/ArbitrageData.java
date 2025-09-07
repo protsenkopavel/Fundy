@@ -23,5 +23,7 @@ public record ArbitrageData(
     }
 
     public record Decision(ExchangeType longEx, ExchangeType shortEx) {
+        public Decision {
+        }
     }
 }

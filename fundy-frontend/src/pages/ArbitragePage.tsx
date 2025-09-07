@@ -157,7 +157,7 @@ export default function ArbitragePage() {
                 headerAlign: 'center',
                 renderCell: (p) => {
                     const n = Number(p.row?.priceSpread);
-                    return <Box sx={{fontWeight: 600}}>{Number.isNaN(n) ? '—' : n.toFixed(6)}</Box>;
+                    return <Box sx={{fontWeight: 600}}>{Number.isNaN(n) ? '—' : fmtPct(n)}</Box>;
                 }
             },
             {
@@ -169,39 +169,54 @@ export default function ArbitragePage() {
                 renderCell: (p) => {
                     const n = Number(p.row?.fundingSpread);
                     return (
-                        <Box sx={{fontWeight: 700, color: pctColor(n)}}>
+                        <Box sx={{fontWeight: 700}}>
                             {Number.isNaN(n) ? '—' : fmtPct(n)}
                         </Box>
                     );
                 }
             },
             {
-                field: 'decision',
-                headerName: 'Комбинация',
-                minWidth: 220,
-                flex: 0.9,
+                field: 'longEx',
+                headerName: 'Лонг',
+                width: 120,
                 align: 'center',
                 headerAlign: 'center',
                 sortable: false,
                 renderCell: (p) => {
                     const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
-                    if (!d || (!d.longEx && !d.shortEx)) return <Box sx={{color: 'text.secondary'}}>—</Box>;
-
-                    const tag = (text: string, color: string) => (
-                        <Box sx={{
-                            px: 0.5, fontSize: 12, fontWeight: 900,
-                            color, border: 'none !important', background: 'transparent',
-                            textTransform: 'uppercase', whiteSpace: 'nowrap',
-                            width: 120, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                            {text}
-                        </Box>
-                    );
+                    if (!d?.longEx) return <Box sx={{color: 'text.secondary'}}>—</Box>;
 
                     return (
-                        <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
-                            {d.longEx && tag(`LONG ${d.longEx}`, '#22c55e')}
-                            {d.shortEx && tag(`SHORT ${d.shortEx}`, '#ef4444')}
+                        <Box sx={{
+                            px: 0.5, fontSize: 12, fontWeight: 900,
+                            color: '#22c55e', border: 'none !important', background: 'transparent',
+                            textTransform: 'uppercase', whiteSpace: 'nowrap',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            {d.longEx}
+                        </Box>
+                    );
+                }
+            },
+            {
+                field: 'shortEx',
+                headerName: 'Шорт',
+                width: 120,
+                align: 'center',
+                headerAlign: 'center',
+                sortable: false,
+                renderCell: (p) => {
+                    const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
+                    if (!d?.shortEx) return <Box sx={{color: 'text.secondary'}}>—</Box>;
+
+                    return (
+                        <Box sx={{
+                            px: 0.5, fontSize: 12, fontWeight: 900,
+                            color: '#ef4444', border: 'none !important', background: 'transparent',
+                            textTransform: 'uppercase', whiteSpace: 'nowrap',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            {d.shortEx}
                         </Box>
                     );
                 }
@@ -265,12 +280,12 @@ export default function ArbitragePage() {
 
     const handleScan = () => {
         const minFunding = minRate ? Number(minRate) / 100 : undefined;
-        const minPerp = minPriceSpread ? Number(minPriceSpread) : undefined;
+        const minPriceSpreadPct = minPriceSpread ? Number(minPriceSpread) / 100 : undefined;
 
         lastReqRef.current = {
             exchanges: selExchanges.length ? selExchanges.map(e => e.code ?? e.name) : undefined,
             minFundingRate: Number.isFinite(minFunding as number) ? minFunding : undefined,
-            minPerpetualPrice: Number.isFinite(minPerp as number) ? minPerp : undefined,
+            minPerpetualPrice: Number.isFinite(minPriceSpreadPct as number) ? minPriceSpreadPct : undefined,
             timeZone
         };
         arbQuery.refetch();

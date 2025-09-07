@@ -1,9 +1,7 @@
 package net.protsenko.fundy.app.service;
 
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.BucketEntry;
-import net.protsenko.fundy.app.dto.CanonicalInstrument;
-import net.protsenko.fundy.app.dto.InstrumentType;
+import net.protsenko.fundy.app.dto.*;
 import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
 import net.protsenko.fundy.app.dto.rs.ArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
@@ -13,58 +11,55 @@ import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.utils.ExchangeLinkResolver;
-import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
 @Service
 public class ArbitrageScannerService extends BaseExchangeService {
-    private static final MathContext MC = new MathContext(8, RoundingMode.HALF_UP);
 
     private final UniverseService universeService;
 
-    public ArbitrageScannerService(ExchangeClientFactory factory, UniverseService universeService) {
+    public ArbitrageScannerService(ExchangeClientFactory factory,
+                                   UniverseService universeService) {
         super(factory);
         this.universeService = universeService;
     }
 
-    public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest f) {
-        BigDecimal minFr = f.minFr();
-        BigDecimal minPr = f.minPr();
+    public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest req) {
+        Set<ExchangeType> exchanges = req.effectiveExchanges();
+        Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(exchanges);
 
-        Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(f.effectiveExchanges());
+        Map<String, InstrumentArbitrageData> instrumentData = collectInstrumentData(exchanges, uni);
 
-        Map<String, List<BucketEntry>> bySymbol = across(f.effectiveExchanges(),
-                c -> loadExchangeData(c, uni))
-                .collect(Collectors.groupingByConcurrent(BucketEntry::symbol));
-
-        return bySymbol.entrySet().parallelStream()
-                .map(this::buildView)
+        return instrumentData.values().stream()
+                .map(this::analyzeArbitrageOpportunity)
                 .filter(Objects::nonNull)
-                .filter(a -> a.fundingSpread().compareTo(minFr) >= 0
-                        && a.priceSpread().compareTo(minPr) >= 0)
-                .sorted(Comparator.comparing(ArbitrageData::fundingSpread).reversed())
+                .filter(data -> passesFilters(data, req))
+                .sorted(this::compareArbitrageData)
                 .toList();
     }
 
-    private InstrumentData makeInstr(String canonicalKey, String nativeSymbol, ExchangeType ex) {
-        String[] p = canonicalKey.split("/");
-        String base = p.length > 0 ? p[0] : "";
-        String quote = p.length > 1 ? p[1] : "USDT";
-        return new InstrumentData(base, quote, InstrumentType.PERPETUAL, nativeSymbol, ex);
+    private Map<String, InstrumentArbitrageData> collectInstrumentData(Set<ExchangeType> exchanges,
+                                                                       Map<String, Map<ExchangeType, String>> uni) {
+        Map<String, InstrumentArbitrageData> result = new HashMap<>();
+
+        across(exchanges, client -> loadExchangeData(client, uni)).forEach(data -> {
+            result.computeIfAbsent(data.canonicalKey(), k -> new InstrumentArbitrageData(data.canonicalKey()))
+                    .addExchangeData(data);
+        });
+
+        return result;
     }
 
-    private Stream<BucketEntry> loadExchangeData(ExchangeClient client, Map<String, Map<ExchangeType, String>> uni) {
+    private Stream<ExchangeArbitrageData> loadExchangeData(ExchangeClient client,
+                                                           Map<String, Map<ExchangeType, String>> uni) {
         try {
             ExchangeType ex = client.getExchangeType();
 
@@ -76,124 +71,220 @@ public class ArbitrageScannerService extends BaseExchangeService {
                     .filter(Objects::nonNull)
                     .toList();
 
-            if (instruments.isEmpty()) return Stream.empty();
+            if (instruments.isEmpty()) {
+                return Stream.empty();
+            }
 
-            Map<String, FundingRateData> fundBySymbol = client.getFundingRates(instruments).stream()
-                    .collect(Collectors.toMap(
-                            FundingRateData::canonicalKey,
-                            fr -> fr,
-                            (a, b) -> a
-                    ));
+            Map<String, TickerData> tickers = client.getTickers(instruments).stream()
+                    .collect(Collectors.toMap(t -> t.instrument().nativeSymbol(), Function.identity()));
 
-            List<TickerData> tickers = client.getTickers(instruments);
+            Map<String, FundingRateData> fundingRates = client.getFundingRates(instruments).stream()
+                    .collect(Collectors.toMap(fr -> fr.instrument().nativeSymbol(), Function.identity()));
 
-            return tickers.stream()
-                    .map(tk -> {
-                        String symbol = SymbolNormalizer.canonicalKey(tk.instrument());
-                        FundingRateData fr = fundBySymbol.get(symbol);
-                        BigDecimal frValue = (fr == null) ? null : fr.fundingRate();
-                        long nextFundingTs = (fr == null) ? 0L : fr.nextFundingTs();
-                        return new BucketEntry(symbol, client.getExchangeType(), tk.lastPrice(), frValue, nextFundingTs);
-                    })
-                    .filter(be -> be.price().compareTo(BigDecimal.ZERO) > 0);
+            return instruments.stream()
+                    .filter(instr -> tickers.containsKey(instr.nativeSymbol()) &&
+                            fundingRates.containsKey(instr.nativeSymbol()))
+                    .map(instr -> {
+                        TickerData ticker = tickers.get(instr.nativeSymbol());
+                        FundingRateData funding = fundingRates.get(instr.nativeSymbol());
+                        String canonicalKey = instr.baseAsset() + "/" + instr.quoteAsset();
+                        return new ExchangeArbitrageData(
+                                canonicalKey,
+                                ex,
+                                ticker.lastPrice(),
+                                funding.fundingRate(),
+                                funding.nextFundingTs(),
+                                ExchangeLinkResolver.link(ex, instr)
+                        );
+                    });
+
         } catch (Exception e) {
-            log.warn("Не удалось получить данные с биржи {}", client.getExchangeType(), e);
+            log.warn("Skip {}: {}", client.getExchangeType(), e.getMessage());
             return Stream.empty();
         }
     }
 
-    private ArbitrageData buildView(Map.Entry<String, List<BucketEntry>> e) {
-        String symbol = e.getKey();
-        List<BucketEntry> list = e.getValue();
+    private InstrumentData makeInstr(String canonicalKey, String nativeSymbol, ExchangeType ex) {
+        String[] p = canonicalKey.split("/");
+        String base = p.length > 0 ? p[0] : "";
+        String quote = p.length > 1 ? p[1] : "USDT";
+        return new InstrumentData(base, quote, InstrumentType.PERPETUAL, nativeSymbol, ex);
+    }
 
-        if (list.stream().map(BucketEntry::price).distinct().count() < 2) return null;
-        if (list.stream().map(BucketEntry::funding).filter(Objects::nonNull).distinct().count() < 2) return null;
+    private ArbitrageData analyzeArbitrageOpportunity(InstrumentArbitrageData data) {
+        if (data.exchangeData.size() < 2) {
+            return null;
+        }
 
-        String[] parts = symbol.split("/");
-        CanonicalInstrument instr = new CanonicalInstrument(
-                parts.length > 0 ? parts[0] : "",
-                parts.length > 1 ? parts[1] : "USDT"
-        );
+        PriceSpreadAnalysis priceAnalysis = analyzePriceSpread(data);
 
-        BucketEntry maxPrice = list.stream().max(Comparator.comparing(BucketEntry::price)).orElseThrow();
-        BucketEntry minPrice = list.stream().min(Comparator.comparing(BucketEntry::price)).orElseThrow();
-        if (minPrice.price().compareTo(BigDecimal.ZERO) == 0) return null;
+        FundingSpreadAnalysis fundingAnalysis = analyzeFundingSpread(data);
 
-        BigDecimal priceSpread = maxPrice.price()
-                .subtract(minPrice.price(), MC)
-                .divide(minPrice.price(), MC);
+        ArbitrageType arbitrageType = determineArbitrageType(priceAnalysis, fundingAnalysis);
+        if (arbitrageType == ArbitrageType.NONE) {
+            return null;
+        }
 
-        BucketEntry maxFr = list.stream().filter(b -> b.funding() != null)
-                .max(Comparator.comparing(BucketEntry::funding)).orElseThrow();
-        BucketEntry minFr = list.stream().filter(b -> b.funding() != null)
-                .min(Comparator.comparing(BucketEntry::funding)).orElseThrow();
-        BigDecimal fundingSpread = maxFr.funding().subtract(minFr.funding(), MC);
+        ArbitrageData.Decision decision = makeDecision(arbitrageType, priceAnalysis, fundingAnalysis);
 
-        ArbitrageData.Decision decision = pickBestPair(list);
-        if (decision == null) return null;
+        BigDecimal priceSpread = calculatePriceSpread(priceAnalysis);
+        BigDecimal fundingSpread = calculateFundingSpread(fundingAnalysis);
 
-        Map<ExchangeType, BigDecimal> priceMap = list.stream()
-                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::price, (a, b) -> a));
-        Map<ExchangeType, BigDecimal> frMap = list.stream()
-                .filter(it -> it.funding() != null)
-                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::funding, BigDecimal::max));
-        Map<ExchangeType, Long> nextFundingMap = list.stream()
-                .collect(Collectors.toMap(BucketEntry::ex, BucketEntry::nextFundingTs, Math::min));
-
-        Map<ExchangeType, String> linkMap = list.stream()
-                .map(BucketEntry::ex)
-                .distinct()
-                .collect(Collectors.toMap(
-                        ex -> ex,
-                        ex -> ExchangeLinkResolver.link(
-                                ex,
-                                new InstrumentData(
-                                        instr.base(), instr.quote(),
-                                        InstrumentType.PERPETUAL,
-                                        instr.base() + instr.quote(),
-                                        ex
-                                )
-                        )
-                ));
+        Map<ExchangeType, String> links = data.exchangeData.values().stream()
+                .collect(Collectors.toMap(ExchangeArbitrageData::exchange, ExchangeArbitrageData::link));
 
         return new ArbitrageData(
-                instr,
-                Map.copyOf(priceMap),
-                Map.copyOf(frMap),
-                Map.copyOf(nextFundingMap),
+                data.getCanonicalInstrument(),
+                data.getPrices(),
+                data.getFundingRates(),
+                data.getNextFundingTs(),
                 priceSpread,
                 fundingSpread,
                 decision,
-                Map.copyOf(linkMap)
+                links
         );
     }
 
-    private ArbitrageData.Decision pickBestPair(List<BucketEntry> list) {
-        BigDecimal bestScore = null;
-        ExchangeType bestLong = null, bestShort = null;
+    private PriceSpreadAnalysis analyzePriceSpread(InstrumentArbitrageData data) {
+        List<ExchangeArbitrageData> sortedByPrice = data.exchangeData.values().stream()
+                .sorted(Comparator.comparing(ExchangeArbitrageData::price))
+                .toList();
 
-        for (int i = 0; i < list.size(); i++) {
-            for (int j = 0; j < list.size(); j++) {
-                if (i == j) continue;
+        if (sortedByPrice.size() < 2) return null;
 
-                BucketEntry L = list.get(i);
-                BucketEntry S = list.get(j);
+        ExchangeArbitrageData minPrice = sortedByPrice.getFirst();
+        ExchangeArbitrageData maxPrice = sortedByPrice.getLast();
 
-                if (L.funding() == null || S.funding() == null) continue;
-                if (L.price().compareTo(S.price()) >= 0) continue;
+        BigDecimal spread = maxPrice.price().subtract(minPrice.price())
+                .divide(minPrice.price(), 6, RoundingMode.HALF_UP);
 
-                BigDecimal fundingProfit = S.funding().subtract(L.funding(), MC);
-                BigDecimal priceProfit = S.price().subtract(L.price(), MC)
-                        .divide(L.price(), MC);
-                BigDecimal score = fundingProfit.add(priceProfit, MC);
+        return new PriceSpreadAnalysis(minPrice, maxPrice, spread);
+    }
 
-                if (bestScore == null || score.compareTo(bestScore) > 0) {
-                    bestScore = score;
-                    bestLong = L.ex();
-                    bestShort = S.ex();
-                }
+    private FundingSpreadAnalysis analyzeFundingSpread(InstrumentArbitrageData data) {
+        List<ExchangeArbitrageData> sortedByFunding = data.exchangeData.values().stream()
+                .sorted(Comparator.comparing(ExchangeArbitrageData::fundingRate))
+                .toList();
+
+        if (sortedByFunding.size() < 2) return null;
+
+        ExchangeArbitrageData minFunding = sortedByFunding.getFirst();
+        ExchangeArbitrageData maxFunding = sortedByFunding.getLast();
+
+        BigDecimal spread = maxFunding.fundingRate().subtract(minFunding.fundingRate());
+
+        return new FundingSpreadAnalysis(minFunding, maxFunding, spread);
+    }
+
+    private ArbitrageType determineArbitrageType(PriceSpreadAnalysis priceAnalysis,
+                                                 FundingSpreadAnalysis fundingAnalysis) {
+        boolean hasPriceSpread = priceAnalysis != null && priceAnalysis.spread().abs().compareTo(BigDecimal.valueOf(0.001)) > 0;
+        boolean hasFundingSpread = fundingAnalysis != null && fundingAnalysis.spread().abs().compareTo(BigDecimal.valueOf(0.0001)) > 0;
+
+        if (hasPriceSpread && hasFundingSpread) {
+            if (priceAnalysis.minPriceEx().fundingRate().compareTo(BigDecimal.ZERO) < 0 &&
+                    priceAnalysis.maxPriceEx().fundingRate().compareTo(BigDecimal.ZERO) > 0) {
+                return ArbitrageType.COMBINED;
             }
         }
-        return bestLong == null ? null : new ArbitrageData.Decision(bestLong, bestShort);
+
+        if (hasPriceSpread) {
+            return ArbitrageType.PRICE;
+        }
+
+        if (hasFundingSpread) {
+            return ArbitrageType.FUNDING;
+        }
+
+        return ArbitrageType.NONE;
+    }
+
+    private ArbitrageData.Decision makeDecision(ArbitrageType type,
+                                                PriceSpreadAnalysis priceAnalysis,
+                                                FundingSpreadAnalysis fundingAnalysis) {
+        switch (type) {
+            case PRICE:
+                if (priceAnalysis != null) {
+                    return new ArbitrageData.Decision(
+                            priceAnalysis.minPriceEx().exchange(),
+                            priceAnalysis.maxPriceEx().exchange()
+                    );
+                }
+                break;
+            case FUNDING:
+                if (fundingAnalysis != null) {
+                    return new ArbitrageData.Decision(
+                            fundingAnalysis.minFundingEx().exchange(),
+                            fundingAnalysis.maxFundingEx().exchange()
+                    );
+                }
+                break;
+            case COMBINED:
+                if (priceAnalysis != null) {
+                    return new ArbitrageData.Decision(
+                            priceAnalysis.minPriceEx().exchange(),
+                            priceAnalysis.maxPriceEx().exchange()
+                    );
+                }
+                break;
+        }
+        return new ArbitrageData.Decision(null, null);
+    }
+
+    private BigDecimal calculatePriceSpread(PriceSpreadAnalysis analysis) {
+        return analysis != null ? analysis.spread() : BigDecimal.ZERO;
+    }
+
+    private BigDecimal calculateFundingSpread(FundingSpreadAnalysis analysis) {
+        return analysis != null ? analysis.spread() : BigDecimal.ZERO;
+    }
+
+    private boolean passesFilters(ArbitrageData data, ArbitrageFilterRequest req) {
+        if (data.fundingRates().values().stream()
+                .anyMatch(fr -> fr.abs().compareTo(req.minFr()) < 0)) {
+            return false;
+        }
+
+        return data.prices().values().stream()
+                .noneMatch(price -> price.compareTo(req.minPr()) < 0);
+    }
+
+    private int compareArbitrageData(ArbitrageData a, ArbitrageData b) {
+        BigDecimal aSpread = a.priceSpread().abs().add(a.fundingSpread().abs());
+        BigDecimal bSpread = b.priceSpread().abs().add(b.fundingSpread().abs());
+        return bSpread.compareTo(aSpread);
+    }
+
+    private static class InstrumentArbitrageData {
+        private final String canonicalKey;
+        private final Map<ExchangeType, ExchangeArbitrageData> exchangeData = new EnumMap<>(ExchangeType.class);
+
+        public InstrumentArbitrageData(String canonicalKey) {
+            this.canonicalKey = canonicalKey;
+        }
+
+        public void addExchangeData(ExchangeArbitrageData data) {
+            exchangeData.put(data.exchange(), data);
+        }
+
+        public CanonicalInstrument getCanonicalInstrument() {
+            String[] parts = canonicalKey.split("/");
+            return new CanonicalInstrument(parts[0], parts.length > 1 ? parts[1] : "USDT");
+        }
+
+        public Map<ExchangeType, BigDecimal> getPrices() {
+            return exchangeData.values().stream()
+                    .collect(Collectors.toMap(ExchangeArbitrageData::exchange, ExchangeArbitrageData::price));
+        }
+
+        public Map<ExchangeType, BigDecimal> getFundingRates() {
+            return exchangeData.values().stream()
+                    .collect(Collectors.toMap(ExchangeArbitrageData::exchange, ExchangeArbitrageData::fundingRate));
+        }
+
+        public Map<ExchangeType, Long> getNextFundingTs() {
+            return exchangeData.values().stream()
+                    .collect(Collectors.toMap(ExchangeArbitrageData::exchange, ExchangeArbitrageData::nextFundingTs));
+        }
     }
 }

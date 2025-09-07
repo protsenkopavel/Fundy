@@ -30,7 +30,15 @@ export const pctColor = (v?: number | string | null) => {
 };
 export const fmtPrice = (v?: number | string | null, digits = 3) => {
     const n = v == null ? NaN : Number(v);
-    return Number.isNaN(n) ? '—' : n.toFixed(digits);
+    if (Number.isNaN(n)) return '—';
+
+    // Для очень маленьких чисел используем научное представление
+    if (Math.abs(n) < 0.0001 && n !== 0) {
+        return n.toExponential(2);
+    }
+
+    // Для обычных чисел используем фиксированное количество знаков
+    return n.toFixed(digits);
 };
 export const fmtTs = (ts?: number | string | null, timeZone?: string) => {
     const n = ts == null ? NaN : Number(ts);

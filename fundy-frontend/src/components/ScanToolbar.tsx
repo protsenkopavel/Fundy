@@ -44,9 +44,9 @@ export default function ScanToolbar(p: Props) {
 
             {p.setMinPriceSpread && (
                 <TextField
-                    label="Мин. ценовой спред" placeholder="0.001"
+                    label="Мин. ценовой спред (%)" placeholder="0.1"
                     value={p.minPriceSpread ?? ''} onChange={e => p.setMinPriceSpread!(e.target.value)}
-                    type="number" inputProps={{step: 0.001, min: 0}} sx={{width: 180}} size="small"
+                    type="number" inputProps={{step: 0.1, min: 0}} sx={{width: 180}} size="small"
                 />
             )}
 
