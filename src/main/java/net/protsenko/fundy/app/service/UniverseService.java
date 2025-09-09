@@ -42,7 +42,7 @@ public class UniverseService extends BaseExchangeService {
                     .put(i.exchangeType(), i.nativeSymbol());
         });
 
-        return UniverseNormalizer.normalizeSpot(raw);
+        return UniverseNormalizer.normalize(raw);
     }
 
     @Cacheable(cacheNames = "universe-spot-24h", key = "#exchanges == null ? 'ALL' : #exchanges", sync = true)
