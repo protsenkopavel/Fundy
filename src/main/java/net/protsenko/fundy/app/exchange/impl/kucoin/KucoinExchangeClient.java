@@ -58,14 +58,17 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for KuCoin
-        return List.of();
+        return cache.spotInstruments().values().stream()
+                .map(i -> instrument(i.baseCurrency(), i.quoteCurrency(), InstrumentType.SPOT, i.symbol()))
+                .toList();
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for KuCoin
-        return List.of();
+        Map<String, KucoinTickerData> byTickers = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byTickers,
+                (inst, t) -> ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(),
+                        "0", "0", "0"));
     }
 
     @Override
