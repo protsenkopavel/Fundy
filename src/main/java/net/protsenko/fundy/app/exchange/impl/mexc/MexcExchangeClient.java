@@ -54,14 +54,18 @@ public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSuppor
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for MEXC
-        return List.of();
+        return cache.spotInstruments().stream()
+                .filter(i -> i.state() == 0)
+                .map(i -> instrument(i.baseCoin(), i.quoteCoin(), InstrumentType.SPOT, i.symbol()))
+                .toList();
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for MEXC
-        return List.of();
+        Map<String, MexcTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
+                        t.high24Price(), t.low24Price(), t.volume24()));
     }
 
     @Override
