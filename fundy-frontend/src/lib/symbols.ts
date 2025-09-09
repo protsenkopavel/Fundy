@@ -19,7 +19,7 @@ export const labelFromCanonical = (canon: string) => canon.replace('/', '').toLo
 
 export const fmtPct = (v?: number | string | null) => {
     const n = v == null ? NaN : Number(v);
-    return Number.isNaN(n) ? '—' : `${(n * 100).toFixed(4)}%`;
+    return Number.isNaN(n) ? '—' : `${(n * 100).toFixed(2)}%`;
 };
 export const pctColor = (v?: number | string | null) => {
     const n = v == null ? NaN : Number(v);
@@ -46,7 +46,6 @@ export const fmtTs = (ts?: number | string | null, timeZone?: string) => {
     try {
         const fmt = new Intl.DateTimeFormat(undefined, {
             timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-            year: 'numeric', month: '2-digit', day: '2-digit',
             hour: '2-digit', minute: '2-digit'
         });
         return fmt.format(new Date(n));
