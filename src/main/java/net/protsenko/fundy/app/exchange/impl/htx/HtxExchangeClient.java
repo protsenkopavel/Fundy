@@ -60,14 +60,19 @@ public class HtxExchangeClient implements ExchangeClient, ExchangeMappingSupport
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for HTX
-        return List.of();
+        return cache.spotInstruments().values().stream()
+                .filter(i -> "online".equals(i.state()))
+                .filter(i -> i.getBaseCurrency() != null && i.getQuoteCurrency() != null)
+                .map(i -> instrument(i.getBaseCurrency(), i.getQuoteCurrency(), InstrumentType.SPOT, i.symbol()))
+                .toList();
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for HTX
-        return List.of();
+        Map<String, HtxSpotTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.close(), t.bid(), t.ask(),
+                        t.high(), t.low(), t.vol()));
     }
 
     @Override

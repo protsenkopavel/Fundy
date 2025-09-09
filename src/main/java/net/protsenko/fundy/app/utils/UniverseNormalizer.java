@@ -44,6 +44,30 @@ public final class UniverseNormalizer {
         return out;
     }
 
+    public static Map<String, Map<ExchangeType, String>> normalizeSpot(Map<String, Map<ExchangeType, String>> raw) {
+        Map<String, Map<ExchangeType, String>> out = new TreeMap<>();
+
+        raw.forEach((key, exMap) -> {
+            String normKey = normalizeKey(key);
+            if (normKey == null) return;
+
+            Map<ExchangeType, String> filtered = new EnumMap<>(ExchangeType.class);
+            exMap.forEach((ex, sym) -> {
+                String clean = sanitizeNative(sym);
+                if (clean != null && isSpotSymbol(ex, clean)) {
+                    filtered.put(ex, clean);
+                }
+            });
+
+            if (!filtered.isEmpty()) {
+                out.computeIfAbsent(normKey, k -> new EnumMap<>(ExchangeType.class))
+                        .putAll(filtered);
+            }
+        });
+
+        return out;
+    }
+
     public static String normalizeKey(String rawKey) {
         if (rawKey == null) return null;
         String s = rawKey.trim().toUpperCase(Locale.ROOT);
@@ -88,6 +112,21 @@ public final class UniverseNormalizer {
             case BINGX, HTX -> s.contains("-USDT") || s.contains("-USDC");
             case GATEIO, MEXC -> s.contains("_USDT") || s.contains("_USDC") || s.contains("_USD");
             case COINEX -> s.endsWith("USDT") || s.endsWith("USDC");
+        };
+    }
+
+    private static boolean isSpotSymbol(ExchangeType ex, String symbol) {
+        String s = symbol.trim().toUpperCase(Locale.ROOT);
+        return switch (ex) {
+            case BYBIT -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
+            case OKX -> s.contains("-") && !s.contains("-SWAP") && !s.contains("-FUTURES");
+            case KUCOIN -> s.contains("-") && !s.endsWith("USDTM") && !s.endsWith("USDM") && !s.endsWith("USDCM");
+            case BITGET -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
+            case BINGX -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
+            case HTX -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
+            case GATEIO -> s.contains("_USDT") || s.contains("_USDC") || s.contains("_USD");
+            case MEXC -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
+            case COINEX -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
         };
     }
 

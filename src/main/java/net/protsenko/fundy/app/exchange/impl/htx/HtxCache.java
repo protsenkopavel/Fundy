@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -53,5 +54,42 @@ public class HtxCache implements ExchangeMappingSupport {
         require(resp != null && "ok".equalsIgnoreCase(resp.status()) && resp.data() != null,
                 () -> "HTX batch funding error: " + (resp != null ? resp.status() : "null"));
         return indexByCanonical(resp.data(), HtxFundingItem::contractCode);
+    }
+
+    @Cacheable(cacheNames = "ex-spot-instruments", key = "'HTX'", sync = true)
+    public Map<String, HtxSpotInstrumentItem> spotInstruments() {
+        // HTX spot API uses different base URL
+        String spotBaseUrl = "https://api.huobi.pro";
+        String url = spotBaseUrl + "/v1/common/symbols";
+        HtxResp<List<HtxSpotInstrumentItem>> resp =
+                http.get(url, cfg.getTimeout(), new TypeReference<>() {
+                });
+        require(resp != null && "ok".equalsIgnoreCase(resp.status()) && resp.data() != null,
+                () -> "HTX spot instruments error: " + (resp != null ? resp.status() : "null"));
+        return resp.data().stream()
+                .filter(item -> "online".equals(item.state()))
+                .collect(Collectors.toMap(
+                        HtxSpotInstrumentItem::symbol,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
+    }
+
+    @Cacheable(cacheNames = "ex-spot-tickers", key = "'HTX'", sync = true)
+    public Map<String, HtxSpotTickerItem> spotTickers() {
+        // HTX spot API uses different base URL
+        String spotBaseUrl = "https://api.huobi.pro";
+        String url = spotBaseUrl + "/market/tickers";
+        HtxResp<List<HtxSpotTickerItem>> resp =
+                http.get(url, cfg.getTimeout(), new TypeReference<>() {
+                });
+        require(resp != null && "ok".equalsIgnoreCase(resp.status()) && resp.data() != null,
+                () -> "HTX spot tickers error: " + (resp != null ? resp.status() : "null"));
+        return resp.data().stream()
+                .collect(Collectors.toMap(
+                        HtxSpotTickerItem::symbol,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
     }
 }
