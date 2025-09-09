@@ -46,6 +46,28 @@ public class OkxCache implements ExchangeMappingSupport {
         return indexByCanonical(resp.data(), OkxTickerItem::instId);
     }
 
+    @Cacheable(cacheNames = "ex-spot-instruments", key = "'OKX'", sync = true)
+    public List<OkxInstrumentItem> spotInstruments() {
+        String url = cfg.getBaseUrl() + "/api/v5/public/instruments?instType=SPOT";
+        OkxResponse<OkxInstrumentItem> resp =
+                http.get(url, cfg.getTimeout(), new TypeReference<>() {
+                });
+        require(resp != null && "0".equals(resp.code()) && resp.data() != null,
+                () -> "OKX spot instruments error: " + (resp != null ? resp.msg() : "null"));
+        return resp.data();
+    }
+
+    @Cacheable(cacheNames = "ex-spot-tickers", key = "'OKX'", sync = true)
+    public Map<String, OkxTickerItem> spotTickers() {
+        String url = cfg.getBaseUrl() + "/api/v5/market/tickers?instType=SPOT";
+        OkxResponse<OkxTickerItem> resp =
+                http.get(url, cfg.getTimeout(), new TypeReference<>() {
+                });
+        require(resp != null && "0".equals(resp.code()) && resp.data() != null,
+                () -> "OKX spot tickers error: " + (resp != null ? resp.msg() : "null"));
+        return indexByCanonical(resp.data(), OkxTickerItem::instId);
+    }
+
     @Cacheable(cacheNames = "ex-funding", key = "'OKX:' + #instId", sync = true)
     public OkxFundingItem fundingSingle(String instId) {
         String url = cfg.getBaseUrl() + "/api/v5/public/funding-rate?instId=" + instId;

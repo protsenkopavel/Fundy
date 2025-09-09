@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Stream;
+import java.util.Set;
 
 @Service
 public class UniverseService extends BaseExchangeService {
@@ -65,6 +66,51 @@ public class UniverseService extends BaseExchangeService {
                     .put(i.exchangeType(), i.nativeSymbol());
         });
 
-        return UniverseNormalizer.normalize(raw);
+        return normalizeSpotUniverse(raw);
+    }
+
+    private Map<String, Map<ExchangeType, String>> normalizeSpotUniverse(Map<String, Map<ExchangeType, String>> raw) {
+        Map<String, Map<ExchangeType, String>> out = new TreeMap<>();
+
+        raw.forEach((key, exMap) -> {
+            String normKey = normalizeSpotKey(key);
+            if (normKey == null) return;
+
+            Map<ExchangeType, String> filtered = new EnumMap<>(ExchangeType.class);
+            exMap.forEach((ex, sym) -> {
+                String clean = sanitizeNative(sym);
+                if (clean != null) {
+                    filtered.put(ex, clean);
+                }
+            });
+
+            if (!filtered.isEmpty()) {
+                out.computeIfAbsent(normKey, k -> new EnumMap<>(ExchangeType.class))
+                        .putAll(filtered);
+            }
+        });
+
+        return out;
+    }
+
+    private String normalizeSpotKey(String rawKey) {
+        if (rawKey == null) return null;
+        String s = rawKey.trim().toUpperCase(Locale.ROOT);
+        int slash = s.indexOf('/');
+        if (slash <= 0 || slash >= s.length() - 1) return null;
+
+        String base = s.substring(0, slash).trim();
+        String quote = s.substring(slash + 1).trim();
+
+        Set<String> allowedSpotQuotes = Set.of("USDT", "USDC", "USD", "BTC", "ETH", "EUR", "BRL", "TRY", "AUD", "AED", "SGD");
+        if (!allowedSpotQuotes.contains(quote)) return null;
+
+        base = base.replaceFirst("^\\$+", "");
+        return base + "/" + quote;
+    }
+
+    private String sanitizeNative(String symbol) {
+        if (symbol == null) return null;
+        return symbol.trim().replaceFirst("^\\$+", "");
     }
 }

@@ -74,14 +74,19 @@ public class OkxExchangeClient implements ExchangeClient, ExchangeMappingSupport
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for OKX
-        return List.of();
+        return cache.spotInstruments().stream()
+                .filter(i -> "SPOT".equalsIgnoreCase(i.instType()))
+                .filter(i -> "live".equalsIgnoreCase(i.state()))
+                .map(i -> instrument(i.baseCcy(), i.quoteCcy(), InstrumentType.SPOT, i.instId()))
+                .toList();
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for OKX
-        return List.of();
+        Map<String, OkxTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.last(), t.bidPx(), t.askPx(),
+                        t.high24h(), t.low24h(), t.vol24h()));
     }
 
     @Override
