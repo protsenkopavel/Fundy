@@ -121,7 +121,7 @@ public final class UniverseNormalizer {
             case BYBIT -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
             case OKX -> s.contains("-") && !s.contains("-SWAP") && !s.contains("-FUTURES");
             case KUCOIN -> s.contains("-") && !s.endsWith("USDTM") && !s.endsWith("USDM") && !s.endsWith("USDCM");
-            case BITGET -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
+            case BITGET -> s.contains("USDT_SPBL") || s.contains("USDC_SPBL") || s.contains("USD_SPBL");
             case BINGX -> s.contains("-USDT") || s.contains("-USDC") || s.contains("-USD");
             case HTX -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
             case GATEIO -> s.contains("_USDT") || s.contains("_USDC") || s.contains("_USD");
