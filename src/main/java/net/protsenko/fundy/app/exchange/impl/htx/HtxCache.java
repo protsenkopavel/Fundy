@@ -58,9 +58,7 @@ public class HtxCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-spot-instruments", key = "'HTX'", sync = true)
     public Map<String, HtxSpotInstrumentItem> spotInstruments() {
-        // HTX spot API uses different base URL
-        String spotBaseUrl = "https://api.huobi.pro";
-        String url = spotBaseUrl + "/v1/common/symbols";
+        String url = cfg.getSpotBaseUrl() + "/v1/common/symbols";
         HtxResp<List<HtxSpotInstrumentItem>> resp =
                 http.get(url, cfg.getTimeout(), new TypeReference<>() {
                 });
@@ -77,9 +75,7 @@ public class HtxCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-spot-tickers", key = "'HTX'", sync = true)
     public Map<String, HtxSpotTickerItem> spotTickers() {
-        // HTX spot API uses different base URL
-        String spotBaseUrl = "https://api.huobi.pro";
-        String url = spotBaseUrl + "/market/tickers";
+        String url = cfg.getSpotBaseUrl() + "/market/tickers";
         HtxResp<List<HtxSpotTickerItem>> resp =
                 http.get(url, cfg.getTimeout(), new TypeReference<>() {
                 });

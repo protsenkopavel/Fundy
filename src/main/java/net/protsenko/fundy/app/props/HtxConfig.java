@@ -15,6 +15,7 @@ public class HtxConfig implements ExchangeConfig {
     private String apiKey;
     private String secretKey;
     private String baseUrl = "https://api.hbdm.com";
+    private String spotBaseUrl = "https://api.huobi.pro";
     private int timeout = 10;
     private boolean enabled = true;
 

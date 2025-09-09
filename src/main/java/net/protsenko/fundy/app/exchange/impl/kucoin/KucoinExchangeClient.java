@@ -9,6 +9,7 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
+import net.protsenko.fundy.app.props.KucoinConfig;
 import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,7 @@ import java.util.Objects;
 public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
     private final KucoinCache cache;
+    private final KucoinConfig config;
 
     @Override
     public List<InstrumentData> getFuturesInstruments() {
@@ -73,6 +75,6 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
 
     @Override
     public Boolean isEnabled() {
-        return true;
+        return config.isEnabled();
     }
 }

@@ -9,6 +9,7 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
+import net.protsenko.fundy.app.props.CoinexConfig;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -22,6 +23,7 @@ import static net.protsenko.fundy.app.utils.SymbolNormalizer.canonicalKey;
 public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
     private final CoinexCache cache;
+    private final CoinexConfig config;
 
     @Override
     public List<InstrumentData> getFuturesInstruments() {
@@ -67,7 +69,7 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
                 (fromMeta <= now) || (Math.abs(fromMeta - fromTicker) > TWENTY_MIN);
 
         long candidate = useTicker ? fromTicker : fromMeta;
-        return normalizeFundingBoundary(candidate); // ← добавили
+        return normalizeFundingBoundary(candidate);
     }
 
     private long calcNextFundingMs(long fundingTimeMinutes) {
@@ -116,6 +118,6 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
 
     @Override
     public Boolean isEnabled() {
-        return true;
+        return config.isEnabled();
     }
 }

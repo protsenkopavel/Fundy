@@ -54,20 +54,19 @@ public class MexcCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-spot-instruments", key = "'MEXC'", sync = true)
     public List<MexcInstrumentItem> spotInstruments() {
-        String url = "https://api.mexc.com/api/v3/exchangeInfo";
+        String url = cfg.getSpotBaseUrl() + "/api/v3/exchangeInfo";
         var resp = http.get(url, cfg.getTimeout(), new TypeReference<Map<String, Object>>() {});
         require(resp != null && resp.containsKey("symbols"),
                 () -> "MEXC spot instruments error: invalid response");
 
         @SuppressWarnings("unchecked")
-        var symbols = (java.util.List<java.util.Map<String, Object>>) resp.get("symbols");
+        var symbols = (List<Map<String, Object>>) resp.get("symbols");
 
         return symbols.stream()
                 .filter(s -> {
                     Object status = s.get("status");
                     Object isSpotTradingAllowed = s.get("isSpotTradingAllowed");
-                    return (status != null && "1".equals(status.toString())) &&
-                           (isSpotTradingAllowed != null && Boolean.TRUE.equals(isSpotTradingAllowed));
+                    return (status != null && "1".equals(status.toString())) && (Boolean.TRUE.equals(isSpotTradingAllowed));
                 })
                 .map(s -> {
                     String symbol = (String) s.get("symbol");
@@ -80,8 +79,8 @@ public class MexcCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-spot-tickers", key = "'MEXC'", sync = true)
     public Map<String, MexcTickerItem> spotTickers() {
-        String url = "https://api.mexc.com/api/v3/ticker/24hr";
-        var resp = http.get(url, cfg.getTimeout(), new TypeReference<java.util.List<java.util.Map<String, Object>>>() {});
+        String url = cfg.getSpotBaseUrl() + "/api/v3/ticker/24hr";
+        var resp = http.get(url, cfg.getTimeout(), new TypeReference<List<Map<String, Object>>>() {});
         require(resp != null && !resp.isEmpty(),
                 () -> "MEXC spot tickers error: null or empty response");
 

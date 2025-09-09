@@ -9,6 +9,7 @@ import net.protsenko.fundy.app.utils.HttpExecutor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -43,13 +44,13 @@ public class KucoinCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-spot-instruments", key = "'KUCOIN'", sync = true)
     public Map<String, KucoinSpotInstrumentItem> spotInstruments() {
-        String url = "https://api.kucoin.com/api/v2/symbols";
+        String url = cfg.getSpotBaseUrl() + "/api/v2/symbols";
         var resp = http.get(url, cfg.getTimeout(), new TypeReference<Map<String, Object>>() {});
         require(resp != null && resp.containsKey("data"),
                 () -> "KuCoin spot instruments error: invalid response");
 
         @SuppressWarnings("unchecked")
-        var symbols = (java.util.List<java.util.Map<String, Object>>) resp.get("data");
+        var symbols = (List<Map<String, Object>>) resp.get("data");
 
         return symbols.stream()
                 .filter(s -> "true".equals(s.get("enableTrading").toString()))
@@ -74,8 +75,8 @@ public class KucoinCache implements ExchangeMappingSupport {
         return allTickers.entrySet().stream()
                 .filter(entry -> spotInstruments.containsKey(entry.getKey()))
                 .collect(Collectors.toMap(
-                        java.util.Map.Entry::getKey,
-                        java.util.Map.Entry::getValue
+                        Map.Entry::getKey,
+                        Map.Entry::getValue
                 ));
     }
 }

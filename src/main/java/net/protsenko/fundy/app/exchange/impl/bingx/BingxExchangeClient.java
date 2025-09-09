@@ -9,6 +9,7 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
+import net.protsenko.fundy.app.props.BingxConfig;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
     private final BingxCache cache;
+    private final BingxConfig config;
 
     @Override
     public List<InstrumentData> getFuturesInstruments() {
@@ -68,6 +70,6 @@ public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSuppo
 
     @Override
     public Boolean isEnabled() {
-        return true;
+        return config.isEnabled();
     }
 }

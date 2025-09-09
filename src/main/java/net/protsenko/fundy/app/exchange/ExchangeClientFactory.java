@@ -32,7 +32,7 @@ public class ExchangeClientFactory {
     public <C extends ExchangeClient> C getClient(ExchangeType type) {
         ExchangeClient client = registry.get(type);
         if (client == null) {
-            throw new IllegalArgumentException("Не поддерживается: " + type);
+            throw new IllegalArgumentException("Not supported: " + type);
         }
         return (C) client;
     }

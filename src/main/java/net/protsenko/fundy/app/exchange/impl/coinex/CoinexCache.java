@@ -70,7 +70,6 @@ public class CoinexCache implements ExchangeMappingSupport {
         return resp.data().stream()
                 .filter(market -> market.endsWith("USDT") || market.endsWith("USDC") || market.endsWith("USD"))
                 .map(market -> {
-                    // Parse market name like "BTCUSDT" to get base and quote
                     String base = market.replaceAll("(USDT|USDC|USD)$", "");
                     String quote = market.endsWith("USDT") ? "USDT" :
                                    market.endsWith("USDC") ? "USDC" : "USD";

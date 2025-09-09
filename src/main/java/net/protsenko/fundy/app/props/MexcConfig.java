@@ -14,9 +14,10 @@ import org.springframework.stereotype.Component;
 public class MexcConfig implements ExchangeConfig {
     private String apiKey;
     private String secretKey;
-    private String baseUrl;
-    private int timeout;
-    private boolean enabled;
+    private String baseUrl = "https://contract.mexc.com";
+    private String spotBaseUrl = "https://api.mexc.com";
+    private int timeout = 10;
+    private boolean enabled = true;
 
     @Override
     public ExchangeType getExchangeType() {

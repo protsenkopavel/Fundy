@@ -10,6 +10,7 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
+import net.protsenko.fundy.app.props.GateioConfig;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class GateioExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
     private final GateioCache cache;
+    private final GateioConfig config;
 
     @Override
     public List<InstrumentData> getFuturesInstruments() {
@@ -73,6 +75,6 @@ public class GateioExchangeClient implements ExchangeClient, ExchangeMappingSupp
 
     @Override
     public Boolean isEnabled() {
-        return true;
+        return config.isEnabled();
     }
 }

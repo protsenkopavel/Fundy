@@ -9,6 +9,7 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
+import net.protsenko.fundy.app.props.MexcConfig;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -23,6 +24,7 @@ import static net.protsenko.fundy.app.utils.ExchangeUtils.toLong;
 public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSupport {
 
     private final MexcCache cache;
+    private final MexcConfig config;
 
     @Override
     public List<InstrumentData> getFuturesInstruments() {
@@ -70,6 +72,6 @@ public class MexcExchangeClient implements ExchangeClient, ExchangeMappingSuppor
 
     @Override
     public Boolean isEnabled() {
-        return true;
+        return config.isEnabled();
     }
 }

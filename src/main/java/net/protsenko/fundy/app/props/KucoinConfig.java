@@ -16,6 +16,7 @@ public class KucoinConfig implements ExchangeConfig {
     private String apiKey;
     private String secretKey;
     private String baseUrl = "https://api-futures.kucoin.com";
+    private String spotBaseUrl = "https://api.kucoin.com";
     private int timeout = 10;
     private boolean enabled = true;
 
