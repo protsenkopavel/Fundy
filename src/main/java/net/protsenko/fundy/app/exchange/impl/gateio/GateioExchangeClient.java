@@ -58,14 +58,17 @@ public class GateioExchangeClient implements ExchangeClient, ExchangeMappingSupp
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for Gate.io
-        return List.of();
+        return cache.spotInstruments().values().stream()
+                .map(i -> instrument(i.base(), i.quote(), InstrumentType.SPOT, i.id()))
+                .toList();
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for Gate.io
-        return List.of();
+        Map<String, GateioSpotTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.last(), t.highestBid(), t.lowestAsk(),
+                        t.high24h(), t.low24h(), t.baseVolume()));
     }
 
     @Override

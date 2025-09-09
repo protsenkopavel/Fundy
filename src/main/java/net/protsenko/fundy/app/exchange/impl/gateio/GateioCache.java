@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -40,5 +41,34 @@ public class GateioCache implements ExchangeMappingSupport {
         });
         require(resp != null, () -> "GateIO tickers: null response");
         return indexByCanonical(resp, GateioTickerItem::contract);
+    }
+
+    @Cacheable(cacheNames = "ex-spot-instruments", key = "'GATEIO'", sync = true)
+    public Map<String, GateioSpotInstrumentItem> spotInstruments() {
+        String url = cfg.getBaseUrl() + "/api/v4/spot/currency_pairs";
+        List<GateioSpotInstrumentItem> resp = http.get(url, cfg.getTimeout(), new TypeReference<>() {
+        });
+        require(resp != null, () -> "GateIO spot instruments: null response");
+        return resp.stream()
+                .filter(item -> "tradable".equals(item.tradeStatus()))
+                .collect(Collectors.toMap(
+                        GateioSpotInstrumentItem::id,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
+    }
+
+    @Cacheable(cacheNames = "ex-spot-tickers", key = "'GATEIO'", sync = true)
+    public Map<String, GateioSpotTickerItem> spotTickers() {
+        String url = cfg.getBaseUrl() + "/api/v4/spot/tickers";
+        List<GateioSpotTickerItem> resp = http.get(url, cfg.getTimeout(), new TypeReference<>() {
+        });
+        require(resp != null, () -> "GateIO spot tickers: null response");
+        return resp.stream()
+                .collect(Collectors.toMap(
+                        GateioSpotTickerItem::currencyPair,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
     }
 }
