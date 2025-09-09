@@ -101,14 +101,17 @@ public class CoinexExchangeClient implements ExchangeClient, ExchangeMappingSupp
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for Coinex
-        return List.of();
+        return cache.spotInstruments().values().stream()
+                .map(item -> instrument(item.stock(), item.money(), InstrumentType.SPOT, item.name()))
+                .toList();
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for Coinex
-        return List.of();
+        Map<String, CoinexSpotTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, ticker) -> ticker(inst, ticker.last(), ticker.buy(), ticker.sell(),
+                                       ticker.high(), ticker.low(), ticker.vol()));
     }
 
     @Override

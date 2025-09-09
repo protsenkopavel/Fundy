@@ -55,7 +55,6 @@ public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSuppo
                 .filter(i -> i.getBaseCurrency() != null && i.getQuoteCurrency() != null)
                 .map(i -> instrument(i.getBaseCurrency(), i.getQuoteCurrency(), InstrumentType.SPOT, i.symbol()))
                 .toList();
-        log.info("[BINGX] Returning {} spot instruments", instruments.size());
         return instruments;
     }
 
