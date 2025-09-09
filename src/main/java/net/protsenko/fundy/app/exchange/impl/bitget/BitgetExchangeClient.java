@@ -73,14 +73,17 @@ public class BitgetExchangeClient implements ExchangeClient, ExchangeMappingSupp
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for Bitget
-        return List.of();
+        return cache.spotInstruments().values().stream()
+                .map(i -> instrument(i.baseCoin(), i.quoteCoin(), InstrumentType.SPOT, i.symbol()))
+                .toList();
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for Bitget
-        return List.of();
+        Map<String, BitgetSpotTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.close(), t.bidPr(), t.askPr(),
+                        t.high24h(), t.low24h(), t.baseVol()));
     }
 
     @Override

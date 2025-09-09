@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -65,5 +66,36 @@ public class BitgetCache implements ExchangeMappingSupport {
             case "cmcbl" -> "coin-futures";
             default -> "usdt-futures";
         };
+    }
+
+    @Cacheable(cacheNames = "ex-spot-instruments", key = "'BITGET'", sync = true)
+    public Map<String, BitgetSpotInstrumentItem> spotInstruments() {
+        String url = cfg.getBaseUrl() + "/api/spot/v1/public/products";
+        BitgetResponse<List<BitgetSpotInstrumentItem>> resp = http.get(url, cfg.getTimeout(), new TypeReference<>() {
+        });
+        require(resp != null && "00000".equals(resp.code()) && resp.data() != null,
+                () -> "Bitget spot instruments error: " + (resp != null ? resp.msg() : "null response"));
+        return resp.data().stream()
+                .filter(item -> "online".equals(item.status()))
+                .collect(Collectors.toMap(
+                        BitgetSpotInstrumentItem::symbol,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
+    }
+
+    @Cacheable(cacheNames = "ex-spot-tickers", key = "'BITGET'", sync = true)
+    public Map<String, BitgetSpotTickerItem> spotTickers() {
+        String url = cfg.getBaseUrl() + "/api/spot/v1/market/tickers";
+        BitgetResponse<List<BitgetSpotTickerItem>> resp = http.get(url, cfg.getTimeout(), new TypeReference<>() {
+        });
+        require(resp != null && "00000".equals(resp.code()) && resp.data() != null,
+                () -> "Bitget spot tickers error: " + (resp != null ? resp.msg() : "null response"));
+        return resp.data().stream()
+                .collect(Collectors.toMap(
+                        BitgetSpotTickerItem::symbol,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
     }
 }
