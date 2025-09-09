@@ -50,14 +50,21 @@ public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSuppo
 
     @Override
     public List<InstrumentData> getSpotInstruments() {
-        // TODO: Implement spot instruments for BingX
-        return List.of();
+        var instruments = cache.spotInstruments().values().stream()
+                .filter(i -> i.status() != null && i.status() == 1)
+                .filter(i -> i.getBaseCurrency() != null && i.getQuoteCurrency() != null)
+                .map(i -> instrument(i.getBaseCurrency(), i.getQuoteCurrency(), InstrumentType.SPOT, i.symbol()))
+                .toList();
+        log.info("[BINGX] Returning {} spot instruments", instruments.size());
+        return instruments;
     }
 
     @Override
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
-        // TODO: Implement spot tickers for BingX
-        return List.of();
+        Map<String, BingxSpotTickerItem> byCanonical = cache.spotTickers();
+        return mapTickersByCanonical(instruments, byCanonical,
+                (inst, t) -> ticker(inst, t.lastPrice(), t.bidPrice(), t.askPrice(),
+                        t.highPrice(), t.lowPrice(), t.volume()));
     }
 
     @Override

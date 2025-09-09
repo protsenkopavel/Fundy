@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -55,5 +56,38 @@ public class BingxCache implements ExchangeMappingSupport {
         require(resp != null && resp.code() == 0 && resp.data() != null,
                 () -> "BingX premiumIndex error: " + (resp != null ? resp.msg() : "null"));
         return indexByCanonical(resp.data(), BingxPremiumIndexItem::symbol);
+    }
+
+    @Cacheable(cacheNames = "ex-spot-instruments", key = "'BINGX'", sync = true)
+    public Map<String, BingxSpotInstrumentItem> spotInstruments() {
+        String url = cfg.getBaseUrl() + "/openApi/spot/v1/common/symbols";
+        BingxResponse<BingxSpotInstrumentsResponse> resp =
+                http.get(url, cfg.getTimeout(), new TypeReference<>() {
+                });
+        require(resp != null && resp.code() == 0 && resp.data() != null && resp.data().symbols() != null,
+                () -> "BingX spot instruments error: " + (resp != null ? resp.msg() : "null"));
+        return resp.data().symbols().stream()
+                .filter(item -> item.status() != null && item.status() == 1)
+                .collect(Collectors.toMap(
+                        BingxSpotInstrumentItem::symbol,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
+    }
+
+    @Cacheable(cacheNames = "ex-spot-tickers", key = "'BINGX'", sync = true)
+    public Map<String, BingxSpotTickerItem> spotTickers() {
+        String url = cfg.getBaseUrl() + "/openApi/spot/v1/ticker/24hr";
+        BingxResponse<List<BingxSpotTickerItem>> resp =
+                http.get(url, cfg.getTimeout(), new TypeReference<>() {
+                });
+        require(resp != null && resp.code() == 0 && resp.data() != null,
+                () -> "BingX spot tickers error: " + (resp != null ? resp.msg() : "null"));
+        return resp.data().stream()
+                .collect(Collectors.toMap(
+                        BingxSpotTickerItem::symbol,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
     }
 }

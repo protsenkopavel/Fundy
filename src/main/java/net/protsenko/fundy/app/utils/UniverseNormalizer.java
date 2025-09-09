@@ -122,7 +122,7 @@ public final class UniverseNormalizer {
             case OKX -> s.contains("-") && !s.contains("-SWAP") && !s.contains("-FUTURES");
             case KUCOIN -> s.contains("-") && !s.endsWith("USDTM") && !s.endsWith("USDM") && !s.endsWith("USDCM");
             case BITGET -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
-            case BINGX -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
+            case BINGX -> s.contains("-USDT") || s.contains("-USDC") || s.contains("-USD");
             case HTX -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
             case GATEIO -> s.contains("_USDT") || s.contains("_USDC") || s.contains("_USD");
             case MEXC -> s.endsWith("USDT") || s.endsWith("USDC") || s.endsWith("USD");
