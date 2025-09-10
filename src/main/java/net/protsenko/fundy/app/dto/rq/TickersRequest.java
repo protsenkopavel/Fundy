@@ -17,6 +17,7 @@ public record TickersRequest(
                 ? EnumSet.allOf(ExchangeType.class)
                 : exchanges;
     }
+
     public boolean hasPairs() {
         return pairs != null && !pairs.isEmpty();
     }

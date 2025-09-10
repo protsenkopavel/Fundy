@@ -35,7 +35,8 @@ public class BingxExchangeClient implements ExchangeClient, ExchangeMappingSuppo
     public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, BingxTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.lastPrice(), t.bestBid(), t.bestAsk(), t.high24h(), t.low24h(), t.volume24h()));
+                (inst, t) -> ticker(inst, t.lastPrice(), t.bestBid(), t.bestAsk(),
+                        t.high24h(), t.low24h(), t.volume24h()));
     }
 
     @Override

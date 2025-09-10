@@ -19,7 +19,6 @@ public final class UniverseNormalizer {
     private UniverseNormalizer() {
     }
 
-
     public static Map<String, Map<ExchangeType, String>> normalize(Map<String, Map<ExchangeType, String>> raw) {
         Map<String, Map<ExchangeType, String>> out = new TreeMap<>();
 

@@ -1,6 +1,5 @@
 package net.protsenko.fundy.app.exchange.impl.bitget;
 
-
 public record BitgetFundingMeta(
         String symbol,
         String fundingRate,

@@ -1,6 +1,5 @@
 package net.protsenko.fundy.app.dto.rs;
 
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 

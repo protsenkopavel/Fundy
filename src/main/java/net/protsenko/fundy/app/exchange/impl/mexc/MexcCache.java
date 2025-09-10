@@ -66,7 +66,8 @@ public class MexcCache implements ExchangeMappingSupport {
                 .filter(s -> {
                     Object status = s.get("status");
                     Object isSpotTradingAllowed = s.get("isSpotTradingAllowed");
-                    return (status != null && "1".equals(status.toString())) && (Boolean.TRUE.equals(isSpotTradingAllowed));
+                    return (status != null && "1".equals(status.toString()))
+                            && (Boolean.TRUE.equals(isSpotTradingAllowed));
                 })
                 .map(s -> {
                     String symbol = (String) s.get("symbol");

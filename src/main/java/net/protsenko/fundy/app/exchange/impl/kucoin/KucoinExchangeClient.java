@@ -41,7 +41,8 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
             String key = SymbolNormalizer.canonicalKey(inst);
             KucoinContractItem c = byContracts.get(key);
             if (c == null) return null;
-            return ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(), c.highPrice(), c.lowPrice(), c.volumeOf24h());
+            return ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(),
+                    c.highPrice(), c.lowPrice(), c.volumeOf24h());
         });
     }
 
@@ -49,7 +50,9 @@ public class KucoinExchangeClient implements ExchangeClient, ExchangeMappingSupp
     public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
         Map<String, KucoinContractItem> byContracts = cache.contracts();
         return mapFundingByCanonical(instruments, byContracts,
-                (inst, c) -> "Open".equalsIgnoreCase(c.status()) ? funding(inst, c.fundingFeeRate(), c.nextFundingRateDateTime()) : null)
+                (inst, c) -> "Open".equalsIgnoreCase(c.status())
+                        ? funding(inst, c.fundingFeeRate(), c.nextFundingRateDateTime())
+                        : null)
                 .stream().filter(Objects::nonNull).toList();
     }
 

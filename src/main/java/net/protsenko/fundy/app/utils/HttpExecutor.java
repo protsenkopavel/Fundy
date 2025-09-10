@@ -79,7 +79,8 @@ public class HttpExecutor {
             log.warn("HTTP {} {} interrupted: {}", request.method(), request.uri(), ie.getMessage());
             throw new ExchangeException("API request interrupted", ie);
         } catch (HttpTimeoutException te) {
-            log.warn("HTTP {} {} timeout after {}", request.method(), request.uri(), request.timeout().orElse(Duration.ZERO));
+            log.warn("HTTP {} {} timeout after {}",
+                    request.method(), request.uri(), request.timeout().orElse(Duration.ZERO));
             throw new ExchangeException("API request timed out", te);
         } catch (IOException ioe) {
             log.warn("HTTP {} {} failed (IO): {}", request.method(), request.uri(), ioe.getMessage());

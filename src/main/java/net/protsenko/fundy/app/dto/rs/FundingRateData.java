@@ -6,7 +6,6 @@ import net.protsenko.fundy.app.utils.SymbolNormalizer;
 
 import java.math.BigDecimal;
 
-
 public record FundingRateData(
         InstrumentData instrument,
         BigDecimal fundingRate,

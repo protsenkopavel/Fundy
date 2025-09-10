@@ -62,7 +62,8 @@ public interface ExchangeMappingSupport {
         return indexByCanonical(getExchangeType(), items, sourceNativeSymbol);
     }
 
-    default <S> Map<String, S> indexByCanonical(ExchangeType ex, List<S> items, Function<S, String> sourceNativeSymbol) {
+    default <S> Map<String, S> indexByCanonical(ExchangeType ex, List<S> items,
+            Function<S, String> sourceNativeSymbol) {
         if (items == null || items.isEmpty()) return Map.of();
         int cap = Math.max(16, (int) (items.size() / 0.75f) + 1);
         Map<String, S> m = new HashMap<>(cap);

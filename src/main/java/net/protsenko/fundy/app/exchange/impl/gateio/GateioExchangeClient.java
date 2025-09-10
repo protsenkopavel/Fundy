@@ -1,6 +1,5 @@
 package net.protsenko.fundy.app.exchange.impl.gateio;
 
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.dto.InstrumentType;

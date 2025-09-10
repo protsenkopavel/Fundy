@@ -3,7 +3,6 @@ package net.protsenko.fundy.app.dto.rq;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 
 import java.math.BigDecimal;
-import java.time.ZoneId;
 import java.util.EnumSet;
 import java.util.Set;
 

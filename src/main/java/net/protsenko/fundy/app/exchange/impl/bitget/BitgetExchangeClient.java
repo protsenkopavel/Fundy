@@ -63,6 +63,7 @@ public class BitgetExchangeClient implements ExchangeClient, ExchangeMappingSupp
             try {
                 interval = Math.max(1, Integer.parseInt(meta.fundingRateInterval()));
             } catch (Exception ignore) {
+                // ignore parsing errors, use default interval
             }
         }
         return nextFundingAlignedHours(interval);

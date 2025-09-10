@@ -250,6 +250,14 @@ public class ArbitrageScannerService extends BaseExchangeService {
             List<FundingSpread> fundingSpreads,
             ArbitrageFilterRequest req) {
 
+        ArbitrageOpportunity priceArb = findPriceArbitrage(priceSpreads, req);
+        ArbitrageOpportunity fundingArb = findFundingArbitrage(fundingSpreads, req);
+        ArbitrageOpportunity combinedArb = findCombinedArbitrage(priceSpreads, fundingSpreads, req);
+
+        return selectBestOpportunity(priceArb, fundingArb, combinedArb);
+    }
+
+    private ArbitrageOpportunity findPriceArbitrage(List<PriceSpread> priceSpreads, ArbitrageFilterRequest req) {
         ArbitrageOpportunity best = null;
         BigDecimal bestScore = BigDecimal.ZERO;
 
@@ -270,6 +278,13 @@ public class ArbitrageScannerService extends BaseExchangeService {
             }
         }
 
+        return best;
+    }
+
+    private ArbitrageOpportunity findFundingArbitrage(List<FundingSpread> fundingSpreads, ArbitrageFilterRequest req) {
+        ArbitrageOpportunity best = null;
+        BigDecimal bestScore = BigDecimal.ZERO;
+
         for (FundingSpread fundingSpread : fundingSpreads) {
             BigDecimal fundingArbSpread = fundingSpread.spread().abs();
             if (fundingArbSpread.compareTo(req.minFr()) >= 0) {
@@ -287,6 +302,17 @@ public class ArbitrageScannerService extends BaseExchangeService {
                 }
             }
         }
+
+        return best;
+    }
+
+    private ArbitrageOpportunity findCombinedArbitrage(
+            List<PriceSpread> priceSpreads,
+            List<FundingSpread> fundingSpreads,
+            ArbitrageFilterRequest req) {
+
+        ArbitrageOpportunity best = null;
+        BigDecimal bestScore = BigDecimal.ZERO;
 
         for (PriceSpread priceSpread : priceSpreads) {
             for (FundingSpread fundingSpread : fundingSpreads) {
@@ -318,6 +344,31 @@ public class ArbitrageScannerService extends BaseExchangeService {
         }
 
         return best;
+    }
+
+    private ArbitrageOpportunity selectBestOpportunity(
+            ArbitrageOpportunity priceArb,
+            ArbitrageOpportunity fundingArb,
+            ArbitrageOpportunity combinedArb) {
+
+        List<ArbitrageOpportunity> candidates = new ArrayList<>();
+        if (priceArb != null) candidates.add(priceArb);
+        if (fundingArb != null) candidates.add(fundingArb);
+        if (combinedArb != null) candidates.add(combinedArb);
+
+        return candidates.stream()
+                .max((a, b) -> {
+                    BigDecimal scoreA = calculateOpportunityScore(a);
+                    BigDecimal scoreB = calculateOpportunityScore(b);
+                    return scoreA.compareTo(scoreB);
+                })
+                .orElse(null);
+    }
+
+    private BigDecimal calculateOpportunityScore(ArbitrageOpportunity opportunity) {
+        BigDecimal priceScore = opportunity.priceSpread();
+        BigDecimal fundingScore = opportunity.fundingSpread().multiply(BigDecimal.valueOf(8760));
+        return priceScore.add(fundingScore);
     }
 
     private ArbitrageCandidate evaluateDirection(
@@ -396,7 +447,8 @@ public class ArbitrageScannerService extends BaseExchangeService {
         return data.priceSpread().abs().add(data.fundingSpread().abs());
     }
 
-    private Map<ExchangeType, String> generateTradingLinks(CanonicalInstrument instrument, Set<ExchangeType> exchanges) {
+    private Map<ExchangeType, String> generateTradingLinks(CanonicalInstrument instrument,
+            Set<ExchangeType> exchanges) {
         Map<ExchangeType, String> links = new EnumMap<>(ExchangeType.class);
 
         for (ExchangeType exchange : exchanges) {

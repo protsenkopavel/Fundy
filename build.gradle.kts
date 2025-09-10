@@ -2,6 +2,7 @@ plugins {
     java
     id("org.springframework.boot") version "3.5.4"
     id("io.spring.dependency-management") version "1.1.7"
+    id("checkstyle")
 }
 
 group = "net.protsenko.fundy"
@@ -43,6 +44,25 @@ dependencies {
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 
     annotationProcessor("org.projectlombok:lombok")
+}
+
+checkstyle {
+    toolVersion = "10.9.3"
+    configFile = file("${project.rootDir}/codestyle/checkstyle.xml")
+}
+
+tasks.withType<Checkstyle> {
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    exclude("**/test/**/*")
+    exclude("**/target/**/*")
+}
+
+tasks.check {
+    dependsOn(tasks.withType(Checkstyle::class))
 }
 
 tasks.withType<Test> {
