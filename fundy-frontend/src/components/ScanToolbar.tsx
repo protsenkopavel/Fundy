@@ -1,4 +1,4 @@
-import {Autocomplete, Box, Button, CircularProgress, TextField} from '@mui/material';
+import {Autocomplete, Box, Button, Checkbox, CircularProgress, FormControlLabel, TextField} from '@mui/material';
 import type {Exchange} from '@/api/types';
 
 type Props = {
@@ -14,6 +14,7 @@ type Props = {
     // доп. фильтры (страницы сами решают передавать)
     minRate?: string; setMinRate?: (v: string) => void;
     minPriceSpread?: string; setMinPriceSpread?: (v: string) => void;
+    sameAccrualTime?: boolean; setSameAccrualTime?: (v: boolean) => void;
 
     // тайм-зоны
     timeZone: string;
@@ -58,6 +59,20 @@ export default function ScanToolbar(p: Props) {
                 renderInput={(params) => <TextField {...params} label="Часовой пояс" size="small"/>}
                 sx={{width: 280}}
             />
+
+            {p.setSameAccrualTime && (
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={p.sameAccrualTime ?? false}
+                            onChange={(e) => p.setSameAccrualTime!(e.target.checked)}
+                            size="small"
+                        />
+                    }
+                    label="Только одинаковое время начисления"
+                    sx={{minWidth: 200}}
+                />
+            )}
 
             <Button variant="contained" onClick={p.onScan} disabled={p.loading}>
                 {p.loading ? <CircularProgress size={24}/> : 'Сканировать'}

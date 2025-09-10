@@ -24,6 +24,7 @@ export type ArbitrageRequest = {
     minFundingRate?: number;   // 0.001 == 0.1%
     minPerpetualPrice?: number;
     timeZone?: string;
+    sameAccrualTime?: boolean;
 };
 
 export type FeedbackPayload = {

@@ -37,6 +37,7 @@ export default function ArbitragePage() {
     const [minRate, setMinRate] = useState<string>('');
     const [minPriceSpread, setMinPriceSpread] = useState<string>('');
     const [timeZone, setTimeZone] = useState<string>(tzDefault);
+    const [sameAccrualTime, setSameAccrualTime] = useState<boolean>(false);
 
     const [searchParams, setSearchParams] = useSearchParams();
     useEffect(() => {
@@ -45,10 +46,12 @@ export default function ArbitragePage() {
         const tzParam = searchParams.get('tz');
         const mrParam = searchParams.get('min');
         const mpsParam = searchParams.get('mps');
+        const satParam = searchParams.get('sat');
 
         if (tzParam) setTimeZone(tzParam);
         if (mrParam) setMinRate(mrParam);
         if (mpsParam) setMinPriceSpread(mpsParam);
+        if (satParam) setSameAccrualTime(satParam === 'true');
 
         if (exParam) {
             const codes = exParam.split(',').map(s => s.trim()).filter(Boolean);
@@ -66,6 +69,7 @@ export default function ArbitragePage() {
             tz: timeZone || undefined,
             min: minRate || undefined,
             mps: minPriceSpread || undefined,
+            sat: sameAccrualTime ? 'true' : undefined,
         };
         let changed = false;
         for (const [k, v] of Object.entries(entries)) {
@@ -77,7 +81,7 @@ export default function ArbitragePage() {
         }
         if (changed) setSearchParams(next, {replace: true});
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selExchanges, timeZone, minRate, minPriceSpread]);
+    }, [selExchanges, timeZone, minRate, minPriceSpread, sameAccrualTime]);
 
     const [rows, setRows] = useState<any[]>([]);
     const [exchangeList, setExchangeList] = useState<string[]>([]);
@@ -286,7 +290,8 @@ export default function ArbitragePage() {
             exchanges: selExchanges.length ? selExchanges.map(e => e.code ?? e.name) : undefined,
             minFundingRate: Number.isFinite(minFunding as number) ? minFunding : undefined,
             minPerpetualPrice: Number.isFinite(minPriceSpreadPct as number) ? minPriceSpreadPct : undefined,
-            timeZone
+            timeZone,
+            sameAccrualTime: sameAccrualTime || undefined
         };
         arbQuery.refetch();
     };
@@ -296,6 +301,7 @@ export default function ArbitragePage() {
         setMinRate('');
         setMinPriceSpread('');
         setTimeZone(tzDefault);
+        setSameAccrualTime(false);
     };
 
     if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;
@@ -313,6 +319,7 @@ export default function ArbitragePage() {
                 minRate={minRate} setMinRate={setMinRate}
                 minPriceSpread={minPriceSpread} setMinPriceSpread={setMinPriceSpread}
                 timeZoneValue={timeZone} setTimeZoneValue={setTimeZone}
+                sameAccrualTime={sameAccrualTime} setSameAccrualTime={setSameAccrualTime}
             />
 
             <Box sx={{flex: 1, minHeight: 0}}>

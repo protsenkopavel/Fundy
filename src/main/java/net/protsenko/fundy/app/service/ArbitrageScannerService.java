@@ -179,6 +179,12 @@ public class ArbitrageScannerService extends BaseExchangeService {
                                 e -> e.getValue().nextFundingTs()
                         )) : new EnumMap<>(ExchangeType.class);
 
+        if (req.sameAccrualTime() != null && req.sameAccrualTime()) {
+            if (!hasSameAccrualTime(nextFundingTsMap)) {
+                return null;
+            }
+        }
+
         Map<ExchangeType, String> links = generateTradingLinks(instrument, prices.keySet());
 
         return new ArbitrageData(
@@ -406,6 +412,24 @@ public class ArbitrageScannerService extends BaseExchangeService {
         }
 
         return links;
+    }
+
+    private boolean hasSameAccrualTime(Map<ExchangeType, Long> nextFundingTsMap) {
+        if (nextFundingTsMap == null || nextFundingTsMap.isEmpty()) {
+            return false;
+        }
+
+        Long firstTs = null;
+        for (Long ts : nextFundingTsMap.values()) {
+            if (ts == null) continue;
+            if (firstTs == null) {
+                firstTs = ts;
+            } else if (!firstTs.equals(ts)) {
+                return false;
+            }
+        }
+
+        return firstTs != null;
     }
 
 }

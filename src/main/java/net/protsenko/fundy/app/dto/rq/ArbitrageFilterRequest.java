@@ -10,7 +10,8 @@ import java.util.Set;
 public record ArbitrageFilterRequest(
         Set<ExchangeType> exchanges,
         BigDecimal minFundingRate,
-        BigDecimal minPerpetualPrice
+        BigDecimal minPerpetualPrice,
+        Boolean sameAccrualTime
 ) {
     public Set<ExchangeType> effectiveExchanges() {
         return (exchanges == null || exchanges.isEmpty())
@@ -29,4 +30,5 @@ public record ArbitrageFilterRequest(
                 ? BigDecimal.ZERO
                 : minPerpetualPrice;
     }
+
 }
