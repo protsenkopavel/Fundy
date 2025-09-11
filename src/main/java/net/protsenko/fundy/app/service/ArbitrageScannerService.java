@@ -10,35 +10,37 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.utils.ExchangeLinkResolver;
-import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
 public class ArbitrageScannerService extends BaseExchangeService {
 
-    private final UniverseService universeService;
+    private final FuturesService futuresService;
+    private final FundingService fundingService;
 
-    public ArbitrageScannerService(ExchangeClientFactory factory, UniverseService universeService) {
+    public ArbitrageScannerService(
+            ExchangeClientFactory factory,
+            FuturesService futuresService,
+            FundingService fundingService
+    ) {
         super(factory);
-        this.universeService = universeService;
+        this.futuresService = futuresService;
+        this.fundingService = fundingService;
     }
 
     public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest req) {
         Set<ExchangeType> exchanges = req.effectiveExchanges();
-        Map<String, Map<ExchangeType, String>> perpUniverse = universeService.perpUniverse(exchanges);
-        Map<String, Map<ExchangeType, TickerData>> priceData = collectPriceData(exchanges, perpUniverse);
-        Map<String, Map<ExchangeType, FundingRateData>> fundingData = collectFundingData(exchanges, perpUniverse);
+        Map<String, Map<ExchangeType, TickerData>> priceData = futuresService.collectFuturesPriceData(exchanges);
+        Map<String, Map<ExchangeType, FundingRateData>> fundingData = fundingService.collectFundingData(exchanges);
         List<ArbitrageData> opportunities = new ArrayList<>();
 
-        for (String canonicalKey : perpUniverse.keySet()) {
+        for (String canonicalKey : priceData.keySet()) {
             Map<ExchangeType, TickerData> instrumentPrices = priceData.get(canonicalKey);
             Map<ExchangeType, FundingRateData> instrumentFunding = fundingData.get(canonicalKey);
 
@@ -64,79 +66,6 @@ public class ArbitrageScannerService extends BaseExchangeService {
                 .collect(Collectors.toList());
     }
 
-    private Map<String, Map<ExchangeType, TickerData>> collectPriceData(
-            Set<ExchangeType> exchanges, Map<String, Map<ExchangeType, String>> universe) {
-
-        Map<String, Map<ExchangeType, TickerData>> result = new ConcurrentHashMap<>();
-
-        across(exchanges, client -> {
-            try {
-                ExchangeType ex = client.getExchangeType();
-                List<InstrumentData> targets = universe.entrySet().stream()
-                        .filter(e -> e.getValue().containsKey(ex))
-                        .map(e -> {
-                            String[] parts = e.getKey().split("/");
-                            String base = parts.length > 0 ? parts[0] : "";
-                            String quote = parts.length > 1 ? parts[1] : "USDT";
-                            return new InstrumentData(base, quote, InstrumentType.PERPETUAL,
-                                    e.getValue().get(ex), ex);
-                        })
-                        .collect(Collectors.toList());
-
-                if (targets.isEmpty()) return Stream.empty();
-
-                return client.getFuturesTickers(targets).stream()
-                        .map(ticker -> {
-                            String canonicalKey = SymbolNormalizer.canonicalKey(ticker.instrument());
-                            result.computeIfAbsent(canonicalKey, k -> new EnumMap<>(ExchangeType.class))
-                                    .put(ex, ticker);
-                            return ticker;
-                        });
-            } catch (Exception e) {
-                log.warn("Failed to get price data from {}: {}", client.getExchangeType(), e.getMessage());
-                return Stream.empty();
-            }
-        }).count();
-
-        return result;
-    }
-
-    private Map<String, Map<ExchangeType, FundingRateData>> collectFundingData(
-            Set<ExchangeType> exchanges, Map<String, Map<ExchangeType, String>> universe) {
-
-        Map<String, Map<ExchangeType, FundingRateData>> result = new ConcurrentHashMap<>();
-
-        across(exchanges, client -> {
-            try {
-                ExchangeType ex = client.getExchangeType();
-                List<InstrumentData> targets = universe.entrySet().stream()
-                        .filter(e -> e.getValue().containsKey(ex))
-                        .map(e -> {
-                            String[] parts = e.getKey().split("/");
-                            String base = parts.length > 0 ? parts[0] : "";
-                            String quote = parts.length > 1 ? parts[1] : "USDT";
-                            return new InstrumentData(base, quote, InstrumentType.PERPETUAL,
-                                    e.getValue().get(ex), ex);
-                        })
-                        .collect(Collectors.toList());
-
-                if (targets.isEmpty()) return Stream.empty();
-
-                return client.getFundingRates(targets).stream()
-                        .map(funding -> {
-                            String canonicalKey = SymbolNormalizer.canonicalKey(funding.instrument());
-                            result.computeIfAbsent(canonicalKey, k -> new EnumMap<>(ExchangeType.class))
-                                    .put(ex, funding);
-                            return funding;
-                        });
-            } catch (Exception e) {
-                log.warn("Failed to get funding data from {}: {}", client.getExchangeType(), e.getMessage());
-                return Stream.empty();
-            }
-        }).count();
-
-        return result;
-    }
 
     private ArbitrageData analyzeArbitrageOpportunity(
             String canonicalKey,
@@ -448,7 +377,7 @@ public class ArbitrageScannerService extends BaseExchangeService {
     }
 
     private Map<ExchangeType, String> generateTradingLinks(CanonicalInstrument instrument,
-            Set<ExchangeType> exchanges) {
+                                                           Set<ExchangeType> exchanges) {
         Map<ExchangeType, String> links = new EnumMap<>(ExchangeType.class);
 
         for (ExchangeType exchange : exchanges) {

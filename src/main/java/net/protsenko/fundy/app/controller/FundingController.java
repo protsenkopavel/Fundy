@@ -4,7 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import net.protsenko.fundy.app.dto.rs.FundingRateView;
 import net.protsenko.fundy.app.dto.rq.FundingFilterRequest;
-import net.protsenko.fundy.app.service.FundingScannerService;
+import net.protsenko.fundy.app.service.FundingService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,7 +16,7 @@ import java.util.List;
 @RequestMapping("/api/market/funding")
 @RequiredArgsConstructor
 public class FundingController {
-    private final FundingScannerService service;
+    private final FundingService service;
 
     @PostMapping("/opportunities")
     public List<FundingRateView> getFundingOpportunities(@Valid @RequestBody FundingFilterRequest req) {

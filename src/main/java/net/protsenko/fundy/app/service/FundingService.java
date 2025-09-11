@@ -9,22 +9,27 @@ import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
 @Service
-public class FundingScannerService extends BaseExchangeService {
+public class FundingService extends BaseExchangeService {
 
     private final UniverseService universeService;
 
-    public FundingScannerService(ExchangeClientFactory factory, UniverseService universeService) {
+    public FundingService(ExchangeClientFactory factory, UniverseService universeService) {
         super(factory);
         this.universeService = universeService;
     }
@@ -48,8 +53,8 @@ public class FundingScannerService extends BaseExchangeService {
     }
 
     private Stream<FundingRateData> loadExchangeData(ExchangeClient client,
-                                                     BigDecimal minFr,
-                                                     Map<String, Map<ExchangeType, String>> uni) {
+                                                      BigDecimal minFr,
+                                                      Map<String, Map<ExchangeType, String>> uni) {
         try {
             ExchangeType ex = client.getExchangeType();
 
@@ -67,5 +72,41 @@ public class FundingScannerService extends BaseExchangeService {
             log.warn("Skip {}: {}", client.getExchangeType(), e.getMessage());
             return Stream.empty();
         }
+    }
+
+    public Map<String, Map<ExchangeType, FundingRateData>> collectFundingData(Set<ExchangeType> exchanges) {
+        Map<String, Map<ExchangeType, String>> universe = universeService.perpUniverse(exchanges);
+        Map<String, Map<ExchangeType, FundingRateData>> result = new ConcurrentHashMap<>();
+
+        across(exchanges, client -> {
+            try {
+                ExchangeType ex = client.getExchangeType();
+                List<InstrumentData> targets = universe.entrySet().stream()
+                        .filter(e -> e.getValue().containsKey(ex))
+                        .map(e -> {
+                            String[] parts = e.getKey().split("/");
+                            String base = parts.length > 0 ? parts[0] : "";
+                            String quote = parts.length > 1 ? parts[1] : "USDT";
+                            return new InstrumentData(base, quote, InstrumentType.PERPETUAL,
+                                    e.getValue().get(ex), ex);
+                        })
+                        .collect(Collectors.toList());
+
+                if (targets.isEmpty()) return Stream.empty();
+
+                return client.getFundingRates(targets).stream()
+                        .map(funding -> {
+                            String canonicalKey = SymbolNormalizer.canonicalKey(funding.instrument());
+                            result.computeIfAbsent(canonicalKey, k -> new EnumMap<>(ExchangeType.class))
+                                    .put(ex, funding);
+                            return funding;
+                        });
+            } catch (Exception e) {
+                log.warn("Failed to get funding data from {}: {}", client.getExchangeType(), e.getMessage());
+                return Stream.empty();
+            }
+        }).count();
+
+        return result;
     }
 }

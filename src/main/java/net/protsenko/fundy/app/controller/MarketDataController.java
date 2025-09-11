@@ -8,7 +8,8 @@ import net.protsenko.fundy.app.dto.rs.ExchangeData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.dto.rs.UniverseEntry;
 import net.protsenko.fundy.app.exchange.ExchangeType;
-import net.protsenko.fundy.app.service.MarketDataService;
+import net.protsenko.fundy.app.service.SpotService;
+import net.protsenko.fundy.app.service.FuturesService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,26 +21,27 @@ import java.util.List;
 @RequiredArgsConstructor
 @Validated
 public class MarketDataController {
-    private final MarketDataService service;
+    private final SpotService spotService;
+    private final FuturesService futuresService;
 
     @PostMapping("/instruments")
     public List<UniverseEntry> instruments(@Valid @RequestBody InstrumentsRequest req) {
-        return service.getPerpUniverse(req);
+        return futuresService.getFuturesUniverse(req);
     }
 
     @PostMapping("/tickers")
     public List<TickerData> tickers(@Valid @RequestBody TickersRequest tickersRequest) {
-        return service.getTickers(tickersRequest);
+        return futuresService.getFuturesTickers(tickersRequest);
     }
 
     @PostMapping("/spot/instruments")
     public List<UniverseEntry> spotInstruments(@Valid @RequestBody InstrumentsRequest req) {
-        return service.getSpotUniverse(req);
+        return spotService.getSpotUniverse(req);
     }
 
     @PostMapping("/spot/tickers")
     public List<TickerData> spotTickers(@Valid @RequestBody TickersRequest tickersRequest) {
-        return service.getSpotTickers(tickersRequest);
+        return spotService.getSpotTickers(tickersRequest);
     }
 
     @GetMapping("/exchanges")
