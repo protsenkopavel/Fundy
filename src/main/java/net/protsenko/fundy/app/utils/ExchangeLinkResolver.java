@@ -1,5 +1,7 @@
 package net.protsenko.fundy.app.utils;
 
+import net.protsenko.fundy.app.domain.CanonicalInstrument;
+import net.protsenko.fundy.app.domain.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 
@@ -8,16 +10,26 @@ import java.util.regex.Pattern;
 
 public final class ExchangeLinkResolver {
 
-    private static final Set<String> KNOWN_QUOTES = new LinkedHashSet<>(Arrays.asList(
-            "USDT", "USDC", "USD", "USDE", "FDUSD", "TUSD", "DAI", "USDD", "FDUSDT", "EURT"
-    ));
-
-    private static final List<String> DERIV_SUFFIXES = Arrays.asList(
-            "SWAP", "PERP", "USDTM", "USDM", "UMCBL", "CMCBL", "DMCBL"
-    );
-    private static final Pattern SPLIT_STD = Pattern.compile("^([A-Za-z0-9]+)[-_/]([A-Za-z0-9]+)$");
-
     private ExchangeLinkResolver() {
+    }
+
+    public static Map<ExchangeType, String> generateTradingLinks(CanonicalInstrument instrument,
+                                                           Set<ExchangeType> exchanges) {
+        Map<ExchangeType, String> links = new EnumMap<>(ExchangeType.class);
+
+        for (ExchangeType exchange : exchanges) {
+            InstrumentData instrumentData = new InstrumentData(
+                    instrument.base(),
+                    instrument.quote(),
+                    InstrumentType.PERPETUAL,
+                    instrument.base() + instrument.quote(),
+                    exchange
+            );
+            String link = link(exchange, instrumentData);
+            links.put(exchange, link);
+        }
+
+        return links;
     }
 
     public static String link(ExchangeType ex, InstrumentData inst) {
@@ -65,7 +77,7 @@ public final class ExchangeLinkResolver {
 
     private static String defaultQuote(String q) {
         String U = safeUpper(q);
-        return (U == null || U.isBlank()) ? "USDT" : U;
+        return U.isBlank() ? "USDT" : U;
     }
 
     private static String safeUpper(String s) {
