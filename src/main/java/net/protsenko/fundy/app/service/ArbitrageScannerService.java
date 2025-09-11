@@ -179,61 +179,10 @@ public class ArbitrageScannerService extends BaseExchangeService {
             List<FundingSpread> fundingSpreads,
             ArbitrageFilterRequest req) {
 
-        ArbitrageOpportunity priceArb = findPriceArbitrage(priceSpreads, req);
-        ArbitrageOpportunity fundingArb = findFundingArbitrage(fundingSpreads, req);
-        ArbitrageOpportunity combinedArb = findCombinedArbitrage(priceSpreads, fundingSpreads, req);
-
-        return selectBestOpportunity(priceArb, fundingArb, combinedArb);
+        return findCombinedArbitrage(priceSpreads, fundingSpreads, req);
     }
 
-    private ArbitrageOpportunity findPriceArbitrage(List<PriceSpread> priceSpreads, ArbitrageFilterRequest req) {
-        ArbitrageOpportunity best = null;
-        BigDecimal bestScore = BigDecimal.ZERO;
 
-        for (PriceSpread priceSpread : priceSpreads) {
-            BigDecimal priceArbSpread = priceSpread.spread().abs();
-            if (priceArbSpread.compareTo(req.minPr()) >= 0) {
-                ExchangeType longEx = priceSpread.spread().compareTo(BigDecimal.ZERO) > 0 ?
-                        priceSpread.ex2() : priceSpread.ex1();
-                ExchangeType shortEx = priceSpread.spread().compareTo(BigDecimal.ZERO) > 0 ?
-                        priceSpread.ex1() : priceSpread.ex2();
-
-                if (priceArbSpread.compareTo(bestScore) > 0) {
-                    best = new ArbitrageOpportunity(
-                            longEx, shortEx, priceArbSpread, BigDecimal.ZERO, ArbitrageType.PRICE
-                    );
-                    bestScore = priceArbSpread;
-                }
-            }
-        }
-
-        return best;
-    }
-
-    private ArbitrageOpportunity findFundingArbitrage(List<FundingSpread> fundingSpreads, ArbitrageFilterRequest req) {
-        ArbitrageOpportunity best = null;
-        BigDecimal bestScore = BigDecimal.ZERO;
-
-        for (FundingSpread fundingSpread : fundingSpreads) {
-            BigDecimal fundingArbSpread = fundingSpread.spread().abs();
-            if (fundingArbSpread.compareTo(req.minFr()) >= 0) {
-                ExchangeType longEx = fundingSpread.spread().compareTo(BigDecimal.ZERO) > 0 ?
-                        fundingSpread.ex1() : fundingSpread.ex2();
-                ExchangeType shortEx = fundingSpread.spread().compareTo(BigDecimal.ZERO) > 0 ?
-                        fundingSpread.ex2() : fundingSpread.ex1();
-
-                BigDecimal score = fundingArbSpread.multiply(BigDecimal.valueOf(8760));
-                if (score.compareTo(bestScore) > 0) {
-                    best = new ArbitrageOpportunity(
-                            longEx, shortEx, BigDecimal.ZERO, fundingArbSpread, ArbitrageType.FUNDING
-                    );
-                    bestScore = score;
-                }
-            }
-        }
-
-        return best;
-    }
 
     private ArbitrageOpportunity findCombinedArbitrage(
             List<PriceSpread> priceSpreads,
@@ -275,30 +224,6 @@ public class ArbitrageScannerService extends BaseExchangeService {
         return best;
     }
 
-    private ArbitrageOpportunity selectBestOpportunity(
-            ArbitrageOpportunity priceArb,
-            ArbitrageOpportunity fundingArb,
-            ArbitrageOpportunity combinedArb) {
-
-        List<ArbitrageOpportunity> candidates = new ArrayList<>();
-        if (priceArb != null) candidates.add(priceArb);
-        if (fundingArb != null) candidates.add(fundingArb);
-        if (combinedArb != null) candidates.add(combinedArb);
-
-        return candidates.stream()
-                .max((a, b) -> {
-                    BigDecimal scoreA = calculateOpportunityScore(a);
-                    BigDecimal scoreB = calculateOpportunityScore(b);
-                    return scoreA.compareTo(scoreB);
-                })
-                .orElse(null);
-    }
-
-    private BigDecimal calculateOpportunityScore(ArbitrageOpportunity opportunity) {
-        BigDecimal priceScore = opportunity.priceSpread();
-        BigDecimal fundingScore = opportunity.fundingSpread().multiply(BigDecimal.valueOf(8760));
-        return priceScore.add(fundingScore);
-    }
 
     private ArbitrageCandidate evaluateDirection(
             ExchangeType longEx, ExchangeType shortEx,
@@ -339,7 +264,7 @@ public class ArbitrageScannerService extends BaseExchangeService {
 
         BigDecimal rate1, rate2;
 
-        if (fundingSpread.ex1().equals(fundingSpread.ex1())) {
+        if (longEx.equals(fundingSpread.ex1())) {
             rate1 = BigDecimal.ZERO;
             rate2 = fundingSpread.spread();
         } else {
