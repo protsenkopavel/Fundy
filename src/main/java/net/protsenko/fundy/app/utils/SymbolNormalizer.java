@@ -13,8 +13,47 @@ public class SymbolNormalizer {
             "USDT", "USDC", "USD", "USDE", "FDUSD", "TUSD", "DAI"
     );
 
-    private static final Map<String, String> BASE_ALIASES = new HashMap<>(Map.of(
-            "BOBBSC", "BOB"
+    private static final Map<String, String> BASE_ALIASES = new HashMap<>(Map.ofEntries(
+            Map.entry("BOBBSC", "BOB"),
+            Map.entry("OMNINETWORK", "OMNI"),
+            Map.entry("OMNI1", "OMNI"),
+            Map.entry("1000000BABYDOGE", "BABYDOGE"),
+            Map.entry("10000000AIDOGE", "AIDOGE"),
+            Map.entry("1000000CHEEMS", "CHEEMS"),
+            Map.entry("1000000MOG", "MOG"),
+            Map.entry("100000AIDOGE", "AIDOGE"),
+            Map.entry("10000CAT", "CAT"),
+            Map.entry("10000ELON", "ELON"),
+            Map.entry("10000QUBIC", "QUBIC"),
+            Map.entry("10000SATS", "SATS"),
+            Map.entry("10000WEN", "WEN"),
+            Map.entry("1000BONK", "BONK"),
+            Map.entry("1000BTT", "BTT"),
+            Map.entry("1000CAT", "CAT"),
+            Map.entry("1000CHEEMS", "CHEEMS"),
+            Map.entry("1000FLOKI", "FLOKI"),
+            Map.entry("1000LUNC", "LUNC"),
+            Map.entry("1000NEIROCTO", "NEIROCTO"),
+            Map.entry("1000PEPE", "PEPE"),
+            Map.entry("1000RATS", "RATS"),
+            Map.entry("1000SATS", "SATS"),
+            Map.entry("1000TAG", "TAG"),
+            Map.entry("1000TOSHI", "TOSHI"),
+            Map.entry("1000TURBO", "TURBO"),
+            Map.entry("1000X", "X"),
+            Map.entry("1000XEC", "XEC"),
+            Map.entry("1MBABYDOGE", "MBABYDOGE"),
+            Map.entry("MBABYDOGE", "BABYDOGE"),
+            Map.entry("LUNA2", "LUNA"),
+            Map.entry("LUNANEW", "LUNA"),
+            Map.entry("TSTBSC", "TST"),
+            Map.entry("ACTSOL", "ACT"),
+            Map.entry("ARCSOL", "ARC"),
+            Map.entry("TRUMPSOL", "TRUMP"),
+            Map.entry("AINBSC", "AIN"),
+            Map.entry("10000COQ", "COQ"),
+            Map.entry("10000LADYS", "LADYS"),
+            Map.entry("1000000PEIPEI", "PEIPEI")
     ));
 
     public static void putBaseAlias(String dirty, String clean) {

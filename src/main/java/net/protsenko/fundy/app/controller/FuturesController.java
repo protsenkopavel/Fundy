@@ -8,7 +8,10 @@ import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.dto.rs.UniverseEntry;
 import net.protsenko.fundy.app.service.FuturesService;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
