@@ -1,4 +1,4 @@
-package net.protsenko.fundy.app.dto;
+package net.protsenko.fundy.app.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 

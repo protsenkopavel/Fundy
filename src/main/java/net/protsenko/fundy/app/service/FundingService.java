@@ -1,7 +1,7 @@
 package net.protsenko.fundy.app.service;
 
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.InstrumentType;
+import net.protsenko.fundy.app.domain.InstrumentType;
 import net.protsenko.fundy.app.dto.rq.FundingFilterRequest;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.FundingRateView;

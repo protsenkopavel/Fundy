@@ -1,7 +1,7 @@
 package net.protsenko.fundy.app.dto.rs;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import net.protsenko.fundy.app.dto.CanonicalInstrument;
+import net.protsenko.fundy.app.domain.CanonicalInstrument;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 
 import java.math.BigDecimal;

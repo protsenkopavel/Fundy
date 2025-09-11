@@ -1,7 +1,7 @@
 package net.protsenko.fundy.app.service;
 
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.dto.*;
+import net.protsenko.fundy.app.domain.*;
 import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
 import net.protsenko.fundy.app.dto.rs.ArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;

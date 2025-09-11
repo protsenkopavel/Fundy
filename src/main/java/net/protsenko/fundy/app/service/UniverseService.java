@@ -1,6 +1,6 @@
 package net.protsenko.fundy.app.service;
 
-import net.protsenko.fundy.app.dto.InstrumentType;
+import net.protsenko.fundy.app.domain.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;

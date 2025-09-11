@@ -1,4 +1,4 @@
-package net.protsenko.fundy.app.dto;
+package net.protsenko.fundy.app.domain;
 
 public enum InstrumentType {
     SPOT,
