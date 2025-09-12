@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 
 @Component
-public class ArbitrageTimeFilter {
+public class FuturesArbitrageTimeFilter {
     public Set<ExchangeType> getExchangesWithSameAccrualTime(Map<ExchangeType, Long> nextFundingTsMap) {
         if (nextFundingTsMap == null || nextFundingTsMap.isEmpty()) {
             return Set.of();

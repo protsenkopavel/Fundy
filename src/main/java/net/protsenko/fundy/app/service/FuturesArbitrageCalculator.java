@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class ArbitrageCalculator {
+public class FuturesArbitrageCalculator {
 
     public List<PriceSpread> calculatePriceSpreads(Map<ExchangeType, TickerData> prices) {
         List<PriceSpread> spreads = new ArrayList<>();

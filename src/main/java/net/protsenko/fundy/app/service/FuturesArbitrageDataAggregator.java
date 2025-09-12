@@ -11,7 +11,7 @@ import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
-public class ArbitrageDataAggregator {
+public class FuturesArbitrageDataAggregator {
 
     private final FuturesService futuresService;
     private final FundingService fundingService;

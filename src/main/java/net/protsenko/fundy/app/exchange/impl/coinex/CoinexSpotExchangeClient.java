@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.domain.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
+import net.protsenko.fundy.app.dto.rs.WithdrawalDepositStatus;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.SpotExchangeClient;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
@@ -33,8 +34,8 @@ public class CoinexSpotExchangeClient implements SpotExchangeClient, ExchangeMap
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
         Map<String, CoinexSpotTickerItem> byCanonical = cache.spotTickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, ticker) -> ticker(inst, ticker.last(), ticker.buy(), ticker.sell(),
-                                       ticker.high(), ticker.low(), ticker.vol()));
+                (inst, t) -> ticker(inst, t.last(), t.buy(), t.sell(),
+                        t.high(), t.low(), t.vol()));
     }
 
     @Override
@@ -45,5 +46,16 @@ public class CoinexSpotExchangeClient implements SpotExchangeClient, ExchangeMap
     @Override
     public Boolean isEnabled() {
         return config.isEnabled();
+    }
+
+    @Override
+    public WithdrawalDepositStatus getWithdrawalDepositStatus(String asset) {
+        return new WithdrawalDepositStatus(
+                getExchangeType(),
+                asset,
+                true,
+                true,
+                System.currentTimeMillis()
+        );
     }
 }

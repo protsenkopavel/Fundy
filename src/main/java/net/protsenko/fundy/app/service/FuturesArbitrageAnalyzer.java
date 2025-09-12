@@ -1,7 +1,7 @@
 package net.protsenko.fundy.app.service;
 
 import net.protsenko.fundy.app.domain.*;
-import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
+import net.protsenko.fundy.app.dto.rq.FuturesArbitrageRequest;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import org.springframework.stereotype.Component;
 
@@ -9,18 +9,18 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Component
-public class ArbitrageAnalyzer {
+public class FuturesArbitrageAnalyzer {
 
-    private final ArbitrageCalculator calculator;
+    private final FuturesArbitrageCalculator calculator;
 
-    public ArbitrageAnalyzer(ArbitrageCalculator calculator) {
+    public FuturesArbitrageAnalyzer(FuturesArbitrageCalculator calculator) {
         this.calculator = calculator;
     }
 
     public ArbitrageOpportunity findBestArbitrageOpportunity(
             List<PriceSpread> priceSpreads,
             List<FundingSpread> fundingSpreads,
-            ArbitrageFilterRequest req) {
+            FuturesArbitrageRequest req) {
 
         return findCombinedArbitrage(priceSpreads, fundingSpreads, req);
     }
@@ -28,7 +28,7 @@ public class ArbitrageAnalyzer {
     private ArbitrageOpportunity findCombinedArbitrage(
             List<PriceSpread> priceSpreads,
             List<FundingSpread> fundingSpreads,
-            ArbitrageFilterRequest req) {
+            FuturesArbitrageRequest req) {
 
         ArbitrageOpportunity best = null;
         BigDecimal bestScore = BigDecimal.ZERO;

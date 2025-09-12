@@ -6,7 +6,7 @@ import net.protsenko.fundy.app.domain.ArbitrageOpportunity;
 import net.protsenko.fundy.app.domain.CanonicalInstrument;
 import net.protsenko.fundy.app.domain.FundingSpread;
 import net.protsenko.fundy.app.domain.PriceSpread;
-import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
+import net.protsenko.fundy.app.dto.rq.FuturesArbitrageRequest;
 import net.protsenko.fundy.app.dto.rs.ArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
@@ -22,16 +22,16 @@ import static net.protsenko.fundy.app.utils.ExchangeLinkResolver.generateTrading
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ArbitrageScannerService {
+public class FuturesArbitrageScannerService {
 
-    private final ArbitrageDataAggregator dataAggregator;
-    private final ArbitrageCalculator calculator;
-    private final ArbitrageAnalyzer analyzer;
-    private final ArbitrageTimeFilter timeFilter;
+    private final FuturesArbitrageDataAggregator dataAggregator;
+    private final FuturesArbitrageCalculator calculator;
+    private final FuturesArbitrageAnalyzer analyzer;
+    private final FuturesArbitrageTimeFilter timeFilter;
 
-    public List<ArbitrageData> getArbitrageOpportunities(ArbitrageFilterRequest req) {
+    public List<ArbitrageData> getArbitrageOpportunities(FuturesArbitrageRequest req) {
         Set<ExchangeType> exchanges = req.effectiveExchanges();
-        ArbitrageDataAggregator.MarketData marketData = dataAggregator.collectMarketData(exchanges);
+        FuturesArbitrageDataAggregator.MarketData marketData = dataAggregator.collectMarketData(exchanges);
 
         return marketData.priceData().entrySet().parallelStream()
                 .filter(entry -> {
@@ -58,7 +58,7 @@ public class ArbitrageScannerService {
             String canonicalKey,
             Map<ExchangeType, TickerData> prices,
             Map<ExchangeType, FundingRateData> fundingRates,
-            ArbitrageFilterRequest req) {
+            FuturesArbitrageRequest req) {
 
         if (prices.size() < 2) return null;
 

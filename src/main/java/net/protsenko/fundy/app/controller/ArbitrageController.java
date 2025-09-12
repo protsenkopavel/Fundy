@@ -2,9 +2,13 @@ package net.protsenko.fundy.app.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
+import net.protsenko.fundy.app.dto.rq.FuturesArbitrageRequest;
+import net.protsenko.fundy.app.dto.rq.SpotArbitrageRequest;
 import net.protsenko.fundy.app.dto.rs.ArbitrageData;
-import net.protsenko.fundy.app.service.ArbitrageScannerService;
+import net.protsenko.fundy.app.dto.rs.SpotArbitrageData;
+import net.protsenko.fundy.app.service.FuturesArbitrageScannerService;
+import net.protsenko.fundy.app.service.SpotArbitrageService;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,11 +19,19 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/market/arbitrage")
 @RequiredArgsConstructor
+@Validated
 public class ArbitrageController {
-    private final ArbitrageScannerService service;
 
-    @PostMapping("/opportunities")
-    public List<ArbitrageData> getArbitrageOpportunities(@Valid @RequestBody ArbitrageFilterRequest req) {
-        return service.getArbitrageOpportunities(req);
+    private final SpotArbitrageService spotArbitrageService;
+    private final FuturesArbitrageScannerService futuresArbitrageScannerService;
+
+    @PostMapping("/spot/opportunities")
+    public List<SpotArbitrageData> getSpotArbitrageOpportunities(@Valid @RequestBody SpotArbitrageRequest request) {
+        return spotArbitrageService.getSpotArbitrageOpportunities(request);
+    }
+
+    @PostMapping("/futures/opportunities")
+    public List<ArbitrageData> getFuturesArbitrageOpportunities(@Valid @RequestBody FuturesArbitrageRequest request) {
+        return futuresArbitrageScannerService.getArbitrageOpportunities(request);
     }
 }

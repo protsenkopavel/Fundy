@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.util.EnumSet;
 import java.util.Set;
 
-public record ArbitrageFilterRequest(
+public record FuturesArbitrageRequest(
         Set<ExchangeType> exchanges,
         BigDecimal minFundingRate,
         BigDecimal minPerpetualPrice,
