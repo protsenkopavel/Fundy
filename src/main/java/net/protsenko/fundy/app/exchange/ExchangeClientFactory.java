@@ -10,30 +10,51 @@ import java.util.stream.Collectors;
 
 @Component
 public class ExchangeClientFactory {
-    private final Map<ExchangeType, ExchangeClient> registry;
+    private final Map<ExchangeType, SpotExchangeClient> spotRegistry;
+    private final Map<ExchangeType, FuturesExchangeClient> futuresRegistry;
 
-    public ExchangeClientFactory(List<ExchangeClient> clients) {
-        Map<ExchangeType, ExchangeClient> tmp = clients.stream()
+    public ExchangeClientFactory(List<SpotExchangeClient> spotClients, List<FuturesExchangeClient> futuresClients) {
+        Map<ExchangeType, SpotExchangeClient> spotTmp = spotClients.stream()
                 .collect(Collectors.toMap(
-                        ExchangeClient::getExchangeType,
+                        SpotExchangeClient::getExchangeType,
                         Function.identity(),
                         (existing, _) -> {
                             throw new IllegalStateException(
-                                    "Duplicate ExchangeClient for type: " + existing.getExchangeType()
+                                    "Duplicate SpotExchangeClient for type: " + existing.getExchangeType()
                             );
                         },
                         () -> new EnumMap<>(ExchangeType.class)
                 ));
 
-        this.registry = Map.copyOf(tmp);
+        Map<ExchangeType, FuturesExchangeClient> futuresTmp = futuresClients.stream()
+                .collect(Collectors.toMap(
+                        FuturesExchangeClient::getExchangeType,
+                        Function.identity(),
+                        (existing, _) -> {
+                            throw new IllegalStateException(
+                                    "Duplicate FuturesExchangeClient for type: " + existing.getExchangeType()
+                            );
+                        },
+                        () -> new EnumMap<>(ExchangeType.class)
+                ));
+
+        this.spotRegistry = Map.copyOf(spotTmp);
+        this.futuresRegistry = Map.copyOf(futuresTmp);
     }
 
-    @SuppressWarnings("unchecked")
-    public <C extends ExchangeClient> C getClient(ExchangeType type) {
-        ExchangeClient client = registry.get(type);
+    public SpotExchangeClient getSpotClient(ExchangeType type) {
+        SpotExchangeClient client = spotRegistry.get(type);
         if (client == null) {
-            throw new IllegalArgumentException("Not supported: " + type);
+            throw new IllegalArgumentException("Spot client not supported: " + type);
         }
-        return (C) client;
+        return client;
+    }
+
+    public FuturesExchangeClient getFuturesClient(ExchangeType type) {
+        FuturesExchangeClient client = futuresRegistry.get(type);
+        if (client == null) {
+            throw new IllegalArgumentException("Futures client not supported: " + type);
+        }
+        return client;
     }
 }

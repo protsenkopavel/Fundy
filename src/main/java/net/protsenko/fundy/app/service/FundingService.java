@@ -6,19 +6,14 @@ import net.protsenko.fundy.app.dto.rq.FundingFilterRequest;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.FundingRateView;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
-import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.exchange.FuturesExchangeClient;
 import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,7 +34,7 @@ public class FundingService extends BaseExchangeService {
 
         Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(req.effectiveExchanges());
 
-        return across(req.effectiveExchanges(), c -> loadExchangeData(c, minFr, uni))
+        return acrossFutures(req.effectiveExchanges(), c -> loadExchangeData(c, minFr, uni))
                 .sorted(Comparator.comparing((FundingRateData r) -> r.fundingRate().abs()).reversed())
                 .map(FundingRateView::of)
                 .toList();
@@ -52,7 +47,7 @@ public class FundingService extends BaseExchangeService {
         return new InstrumentData(base, quote, InstrumentType.PERPETUAL, nativeSymbol, ex);
     }
 
-    private Stream<FundingRateData> loadExchangeData(ExchangeClient client,
+    private Stream<FundingRateData> loadExchangeData(FuturesExchangeClient client,
                                                      BigDecimal minFr,
                                                      Map<String, Map<ExchangeType, String>> uni) {
         try {
@@ -78,7 +73,7 @@ public class FundingService extends BaseExchangeService {
         Map<String, Map<ExchangeType, String>> universe = universeService.perpUniverse(exchanges);
         Map<String, Map<ExchangeType, FundingRateData>> result = new ConcurrentHashMap<>();
 
-        across(exchanges, client -> {
+        acrossFutures(exchanges, client -> {
             try {
                 ExchangeType ex = client.getExchangeType();
                 List<InstrumentData> targets = universe.entrySet().stream()

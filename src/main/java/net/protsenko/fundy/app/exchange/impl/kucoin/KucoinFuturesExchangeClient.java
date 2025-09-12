@@ -1,0 +1,68 @@
+package net.protsenko.fundy.app.exchange.impl.kucoin;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.protsenko.fundy.app.domain.InstrumentType;
+import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.InstrumentData;
+import net.protsenko.fundy.app.dto.rs.TickerData;
+import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.exchange.FuturesExchangeClient;
+import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
+import net.protsenko.fundy.app.props.KucoinConfig;
+import net.protsenko.fundy.app.utils.SymbolNormalizer;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class KucoinFuturesExchangeClient implements FuturesExchangeClient, ExchangeMappingSupport {
+
+    private final KucoinCache cache;
+    private final KucoinConfig config;
+
+    @Override
+    public List<InstrumentData> getFuturesInstruments() {
+        return cache.contracts().values().stream()
+                .filter(c -> "Open".equalsIgnoreCase(c.status()))
+                .map(c -> instrument(c.baseCurrency(), c.quoteCurrency(), InstrumentType.PERPETUAL, c.symbol()))
+                .toList();
+    }
+
+    @Override
+    public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
+        Map<String, KucoinTickerData> byTickers = cache.tickers();
+        Map<String, KucoinContractItem> byContracts = cache.contracts();
+        return mapTickersByCanonical(instruments, byTickers, (inst, t) -> {
+            String key = SymbolNormalizer.canonicalKey(inst);
+            KucoinContractItem c = byContracts.get(key);
+            if (c == null) return null;
+            return ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(),
+                    c.highPrice(), c.lowPrice(), c.volumeOf24h());
+        });
+    }
+
+    @Override
+    public List<FundingRateData> getFundingRates(List<InstrumentData> instruments) {
+        Map<String, KucoinContractItem> byContracts = cache.contracts();
+        return mapFundingByCanonical(instruments, byContracts,
+                (inst, c) -> "Open".equalsIgnoreCase(c.status())
+                        ? funding(inst, c.fundingFeeRate(), c.nextFundingRateDateTime())
+                        : null)
+                .stream().filter(Objects::nonNull).toList();
+    }
+
+    @Override
+    public ExchangeType getExchangeType() {
+        return ExchangeType.KUCOIN;
+    }
+
+    @Override
+    public Boolean isEnabled() {
+        return config.isEnabled();
+    }
+}

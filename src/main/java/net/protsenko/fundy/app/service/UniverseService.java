@@ -27,8 +27,7 @@ public class UniverseService extends BaseExchangeService {
 
         Stream<InstrumentData> stream = scope.stream().flatMap(ex -> {
             try {
-                ExchangeClient c = client(ex);
-                return c.getFuturesInstruments().stream();
+                return futuresClient(ex).getFuturesInstruments().stream();
             } catch (Exception e) {
                 return Stream.empty();
             }
@@ -51,8 +50,7 @@ public class UniverseService extends BaseExchangeService {
 
         Stream<InstrumentData> stream = scope.stream().flatMap(ex -> {
             try {
-                ExchangeClient c = client(ex);
-                return c.getSpotInstruments().stream();
+                return spotClient(ex).getSpotInstruments().stream();
             } catch (Exception e) {
                 return Stream.empty();
             }

@@ -19,17 +19,17 @@ import java.util.stream.Stream;
 
 @Slf4j
 @Service
-public class FuturesService extends BaseExchangeService {
+public class SpotService extends BaseExchangeService {
 
     private final UniverseService universeService;
 
-    public FuturesService(ExchangeClientFactory factory, UniverseService universeService) {
+    public SpotService(ExchangeClientFactory factory, UniverseService universeService) {
         super(factory);
         this.universeService = universeService;
     }
 
-    public List<UniverseEntry> getFuturesUniverse(InstrumentsRequest req) {
-        Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(req.effectiveExchanges());
+    public List<UniverseEntry> getSpotUniverse(InstrumentsRequest req) {
+        Map<String, Map<ExchangeType, String>> uni = universeService.spotUniverse(req.effectiveExchanges());
         return uni.entrySet().stream()
                 .map(e -> {
                     String[] p = e.getKey().split("/");
@@ -41,10 +41,10 @@ public class FuturesService extends BaseExchangeService {
                 .toList();
     }
 
-    public List<TickerData> getFuturesTickers(TickersRequest req) {
-        Map<String, Map<ExchangeType, String>> uni = universeService.perpUniverse(req.effectiveExchanges());
+    public List<TickerData> getSpotTickers(TickersRequest req) {
+        Map<String, Map<ExchangeType, String>> uni = universeService.spotUniverse(req.effectiveExchanges());
 
-        return acrossFutures(req.effectiveExchanges(), c -> {
+        return acrossSpot(req.effectiveExchanges(), c -> {
             try {
                 ExchangeType ex = c.getExchangeType();
 
@@ -58,7 +58,7 @@ public class FuturesService extends BaseExchangeService {
                                 return new InstrumentData(
                                         p.base().toUpperCase(Locale.ROOT),
                                         p.quote().toUpperCase(Locale.ROOT),
-                                        InstrumentType.PERPETUAL,
+                                        InstrumentType.SPOT,
                                         nativeSymbol,
                                         ex
                                 );
@@ -74,7 +74,7 @@ public class FuturesService extends BaseExchangeService {
                                 String base = p.length > 0 ? p[0] : "";
                                 String quote = p.length > 1 ? p[1] : "USDT";
                                 return new InstrumentData(base, quote,
-                                        InstrumentType.PERPETUAL,
+                                        InstrumentType.SPOT,
                                         nativeSymbol, ex);
                             })
                             .filter(Objects::nonNull)
@@ -82,19 +82,19 @@ public class FuturesService extends BaseExchangeService {
                 }
 
                 if (targets.isEmpty()) return Stream.empty();
-                return c.getFuturesTickers(targets).stream();
+                return c.getSpotTickers(targets).stream();
             } catch (Exception e) {
-                log.warn("getFuturesTickers skip {}: {}", c.getExchangeType(), e.getMessage());
+                log.warn("getSpotTickers skip {}: {}", c.getExchangeType(), e.getMessage());
                 return Stream.empty();
             }
         }).toList();
     }
 
-    public Map<String, Map<ExchangeType, TickerData>> collectFuturesPriceData(Set<ExchangeType> exchanges) {
-        Map<String, Map<ExchangeType, String>> universe = universeService.perpUniverse(exchanges);
+    public Map<String, Map<ExchangeType, TickerData>> collectSpotPriceData(Set<ExchangeType> exchanges) {
+        Map<String, Map<ExchangeType, String>> universe = universeService.spotUniverse(exchanges);
         Map<String, Map<ExchangeType, TickerData>> result = new ConcurrentHashMap<>();
 
-        acrossFutures(exchanges, client -> {
+        acrossSpot(exchanges, client -> {
             try {
                 ExchangeType ex = client.getExchangeType();
                 List<InstrumentData> targets = universe.entrySet().stream()
@@ -103,21 +103,21 @@ public class FuturesService extends BaseExchangeService {
                             String[] parts = e.getKey().split("/");
                             String base = parts.length > 0 ? parts[0] : "";
                             String quote = parts.length > 1 ? parts[1] : "USDT";
-                            return new InstrumentData(base, quote, InstrumentType.PERPETUAL,
+                            return new InstrumentData(base, quote, InstrumentType.SPOT,
                                     e.getValue().get(ex), ex);
                         })
                         .collect(Collectors.toList());
 
                 if (targets.isEmpty()) return Stream.empty();
 
-                return client.getFuturesTickers(targets).stream()
+                return client.getSpotTickers(targets).stream()
                         .peek(ticker -> {
                             String canonicalKey = SymbolNormalizer.canonicalKey(ticker.instrument(), false);
                             result.computeIfAbsent(canonicalKey, k -> new EnumMap<>(ExchangeType.class))
                                     .put(ex, ticker);
                         });
             } catch (Exception e) {
-                log.warn("Failed to get futures price data from {}: {}", client.getExchangeType(), e.getMessage());
+                log.warn("Failed to get spot price data from {}: {}", client.getExchangeType(), e.getMessage());
                 return Stream.empty();
             }
         }).count();
