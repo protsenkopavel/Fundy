@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Stream;
-import java.util.Set;
 
 @Service
 public class UniverseService extends BaseExchangeService {
@@ -37,7 +36,7 @@ public class UniverseService extends BaseExchangeService {
 
         Map<String, Map<ExchangeType, String>> raw = new TreeMap<>();
         stream.filter(i -> i.type() == InstrumentType.PERPETUAL).forEach(i -> {
-            String key = SymbolNormalizer.canonicalKey(i);
+            String key = SymbolNormalizer.canonicalKey(i, false);
             raw.computeIfAbsent(key, k -> new EnumMap<>(ExchangeType.class))
                     .put(i.exchangeType(), i.nativeSymbol());
         });
@@ -61,7 +60,7 @@ public class UniverseService extends BaseExchangeService {
 
         Map<String, Map<ExchangeType, String>> raw = new TreeMap<>();
         stream.filter(i -> i.type() == InstrumentType.SPOT).forEach(i -> {
-            String key = SymbolNormalizer.canonicalKey(i);
+            String key = SymbolNormalizer.canonicalKey(i, false);
             raw.computeIfAbsent(key, k -> new EnumMap<>(ExchangeType.class))
                     .put(i.exchangeType(), i.nativeSymbol());
         });

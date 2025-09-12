@@ -13,46 +13,46 @@ public final class UniverseNormalizer {
     private static final Set<String> ALLOWED_QUOTES = Set.of("USDT", "USDC", "USD");
 
     private static final Map<String, String> BASE_ALIASES = Map.ofEntries(
-        Map.entry("AINBSC", "AIN"),
-        Map.entry("OMNINETWORK", "OMNI"),
-        Map.entry("OMNI1", "OMNI"),
-        Map.entry("1000000BABYDOGE", "BABYDOGE"),
-        Map.entry("10000000AIDOGE", "AIDOGE"),
-        Map.entry("1000000CHEEMS", "CHEEMS"),
-        Map.entry("1000000MOG", "MOG"),
-        Map.entry("100000AIDOGE", "AIDOGE"),
-        Map.entry("10000CAT", "CAT"),
-        Map.entry("10000ELON", "ELON"),
-        Map.entry("10000QUBIC", "QUBIC"),
-        Map.entry("10000SATS", "SATS"),
-        Map.entry("10000WEN", "WEN"),
-        Map.entry("1000BONK", "BONK"),
-        Map.entry("1000BTT", "BTT"),
-        Map.entry("1000CAT", "CAT"),
-        Map.entry("1000CHEEMS", "CHEEMS"),
-        Map.entry("1000FLOKI", "FLOKI"),
-        Map.entry("1000LUNC", "LUNC"),
-        Map.entry("1000NEIROCTO", "NEIROCTO"),
-        Map.entry("1000PEPE", "PEPE"),
-        Map.entry("1000RATS", "RATS"),
-        Map.entry("1000SATS", "SATS"),
-        Map.entry("1000TAG", "TAG"),
-        Map.entry("1000TOSHI", "TOSHI"),
-        Map.entry("1000TURBO", "TURBO"),
-        Map.entry("1000X", "X"),
-        Map.entry("1000XEC", "XEC"),
-        Map.entry("1MBABYDOGE", "MBABYDOGE"),
-        Map.entry("MBABYDOGE", "BABYDOGE"),
-        Map.entry("LUNA2", "LUNA"),
-        Map.entry("LUNANEW", "LUNA"),
-        Map.entry("TSTBSC", "TST"),
-        Map.entry("ACTSOL", "ACT"),
-        Map.entry("ARCSOL", "ARC"),
-        Map.entry("TRUMPSOL", "TRUMP"),
-        Map.entry("BOBBSC", "BOB"),
-        Map.entry("10000COQ", "COQ"),
-        Map.entry("10000LADYS", "LADYS"),
-        Map.entry("1000000PEIPEI", "PEIPEI")
+            Map.entry("AINBSC", "AIN"),
+            Map.entry("OMNINETWORK", "OMNI"),
+            Map.entry("OMNI1", "OMNI"),
+            Map.entry("1000000BABYDOGE", "BABYDOGE"),
+            Map.entry("10000000AIDOGE", "AIDOGE"),
+            Map.entry("1000000CHEEMS", "CHEEMS"),
+            Map.entry("1000000MOG", "MOG"),
+            Map.entry("100000AIDOGE", "AIDOGE"),
+            Map.entry("10000CAT", "CAT"),
+            Map.entry("10000ELON", "ELON"),
+            Map.entry("10000QUBIC", "QUBIC"),
+            Map.entry("10000SATS", "SATS"),
+            Map.entry("10000WEN", "WEN"),
+            Map.entry("1000BONK", "BONK"),
+            Map.entry("1000BTT", "BTT"),
+            Map.entry("1000CAT", "CAT"),
+            Map.entry("1000CHEEMS", "CHEEMS"),
+            Map.entry("1000FLOKI", "FLOKI"),
+            Map.entry("1000LUNC", "LUNC"),
+            Map.entry("1000NEIROCTO", "NEIROCTO"),
+            Map.entry("1000PEPE", "PEPE"),
+            Map.entry("1000RATS", "RATS"),
+            Map.entry("1000SATS", "SATS"),
+            Map.entry("1000TAG", "TAG"),
+            Map.entry("1000TOSHI", "TOSHI"),
+            Map.entry("1000TURBO", "TURBO"),
+            Map.entry("1000X", "X"),
+            Map.entry("1000XEC", "XEC"),
+            Map.entry("1MBABYDOGE", "MBABYDOGE"),
+            Map.entry("MBABYDOGE", "BABYDOGE"),
+            Map.entry("LUNA2", "LUNA"),
+            Map.entry("LUNANEW", "LUNA"),
+            Map.entry("TSTBSC", "TST"),
+            Map.entry("ACTSOL", "ACT"),
+            Map.entry("ARCSOL", "ARC"),
+            Map.entry("TRUMPSOL", "TRUMP"),
+            Map.entry("BOBBSC", "BOB"),
+            Map.entry("10000COQ", "COQ"),
+            Map.entry("10000LADYS", "LADYS"),
+            Map.entry("1000000PEIPEI", "PEIPEI")
     );
 
     private UniverseNormalizer() {
@@ -62,7 +62,8 @@ public final class UniverseNormalizer {
         Map<String, Map<ExchangeType, String>> out = new TreeMap<>();
 
         raw.forEach((key, exMap) -> {
-            String normKey = normalizeKey(key);
+            boolean applyAliases = isConsistentForAlias(raw, key);
+            String normKey = normalizeKey(key, applyAliases);
             if (normKey == null) return;
 
             Map<ExchangeType, String> filtered = new EnumMap<>(ExchangeType.class);
@@ -86,7 +87,8 @@ public final class UniverseNormalizer {
         Map<String, Map<ExchangeType, String>> out = new TreeMap<>();
 
         raw.forEach((key, exMap) -> {
-            String normKey = normalizeKey(key);
+            boolean applyAliases = isConsistentForAlias(raw, key);
+            String normKey = normalizeKey(key, applyAliases);
             if (normKey == null) return;
 
             Map<ExchangeType, String> filtered = new EnumMap<>(ExchangeType.class);
@@ -107,6 +109,10 @@ public final class UniverseNormalizer {
     }
 
     public static String normalizeKey(String rawKey) {
+        return normalizeKey(rawKey, true);
+    }
+
+    public static String normalizeKey(String rawKey, boolean applyAliases) {
         if (rawKey == null) return null;
         String s = rawKey.trim().toUpperCase(Locale.ROOT);
         int slash = s.indexOf('/');
@@ -119,7 +125,9 @@ public final class UniverseNormalizer {
 
         base = base.replaceFirst("^\\$+", "");
         base = expandMetricPrefix(base);
-        base = BASE_ALIASES.getOrDefault(base, base);
+        if (applyAliases) {
+            base = BASE_ALIASES.getOrDefault(base, base);
+        }
 
         return base + "/" + quote;
     }
@@ -171,5 +179,20 @@ public final class UniverseNormalizer {
     private static String sanitizeNative(String symbol) {
         if (symbol == null) return null;
         return symbol.trim().replaceFirst("^\\$+", "");
+    }
+
+    private static boolean isConsistentForAlias(Map<String, Map<ExchangeType, String>> raw, String key) {
+        Map<ExchangeType, String> exMap = raw.get(key);
+        if (exMap == null || exMap.size() <= 1) return true; // Если только одна биржа, то консистентно
+
+        String firstNative = null;
+        for (String nativeSymbol : exMap.values()) {
+            if (firstNative == null) {
+                firstNative = nativeSymbol;
+            } else if (!firstNative.equals(nativeSymbol)) {
+                return false; // Найдены разные nativeSymbols
+            }
+        }
+        return true; // Все nativeSymbols одинаковы
     }
 }

@@ -56,15 +56,20 @@ public class SymbolNormalizer {
             Map.entry("1000000PEIPEI", "PEIPEI")
     ));
 
-    public static void putBaseAlias(String dirty, String clean) {
-        BASE_ALIASES.put(dirty.toUpperCase(Locale.ROOT), clean.toUpperCase(Locale.ROOT));
+    public static String canonicalKey(InstrumentData inst) {
+        return canonicalKey(inst, true);
     }
 
-    public static String canonicalKey(InstrumentData inst) {
-        return key(inst.baseAsset(), inst.quoteAsset());
+    public static String canonicalKey(InstrumentData inst, boolean applyAliases) {
+        String base = applyAliases ? BASE_ALIASES.getOrDefault(inst.baseAsset(), inst.baseAsset()) : inst.baseAsset();
+        return key(base, inst.quoteAsset());
     }
 
     public static String canonicalKey(ExchangeType ex, String nativeSymbol) {
+        return canonicalKey(ex, nativeSymbol, true);
+    }
+
+    public static String canonicalKey(ExchangeType ex, String nativeSymbol, boolean applyAliases) {
         String[] pq = switch (ex) {
             case BYBIT -> splitBybit(nativeSymbol);
             case BINGX, HTX -> splitByDash(nativeSymbol);
@@ -75,7 +80,7 @@ public class SymbolNormalizer {
             case COINEX -> splitCoinex(nativeSymbol);
             case MEXC -> splitMexc(nativeSymbol);
         };
-        String base = BASE_ALIASES.getOrDefault(pq[0], pq[0]);
+        String base = applyAliases ? BASE_ALIASES.getOrDefault(pq[0], pq[0]) : pq[0];
         return key(base, pq[1]);
     }
 

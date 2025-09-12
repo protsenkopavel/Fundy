@@ -28,17 +28,21 @@ export const pctColor = (v?: number | string | null) => {
     if (n < 0) return '#b42318';
     return '#667085';
 };
-export const fmtPrice = (v?: number | string | null, digits = 3) => {
+export const fmtPrice = (v?: number | string | null) => {
     const n = v == null ? NaN : Number(v);
     if (Number.isNaN(n)) return '—';
 
-    // Для очень маленьких чисел используем научное представление
-    if (Math.abs(n) < 0.0001 && n !== 0) {
-        return n.toExponential(2);
-    }
+    // Определяем количество знаков в зависимости от величины числа
+    let precision = 6;
+    if (Math.abs(n) >= 1) precision = 4;
+    else if (Math.abs(n) >= 0.1) precision = 5;
+    else if (Math.abs(n) >= 0.01) precision = 6;
+    else if (Math.abs(n) >= 0.001) precision = 7;
+    else precision = 8;
 
-    // Для обычных чисел используем фиксированное количество знаков
-    return n.toFixed(digits);
+    // Форматируем и удаляем trailing zeros
+    const formatted = n.toFixed(precision);
+    return formatted.replace(/\.?0+$/, '');
 };
 export const fmtTs = (ts?: number | string | null, timeZone?: string) => {
     const n = ts == null ? NaN : Number(ts);

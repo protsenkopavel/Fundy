@@ -2,14 +2,15 @@ package net.protsenko.fundy.app.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.protsenko.fundy.app.domain.*;
+import net.protsenko.fundy.app.domain.ArbitrageOpportunity;
+import net.protsenko.fundy.app.domain.CanonicalInstrument;
+import net.protsenko.fundy.app.domain.FundingSpread;
+import net.protsenko.fundy.app.domain.PriceSpread;
 import net.protsenko.fundy.app.dto.rq.ArbitrageFilterRequest;
 import net.protsenko.fundy.app.dto.rs.ArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
-import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
-import net.protsenko.fundy.app.utils.ExchangeLinkResolver;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -118,7 +119,12 @@ public class ArbitrageScannerService {
             if (bestOpportunity == null) return null;
         }
 
-        Map<ExchangeType, String> links = generateTradingLinks(instrument, prices.keySet());
+        Map<ExchangeType, String> nativeSymbols = prices.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().instrument().nativeSymbol()
+                ));
+        Map<ExchangeType, String> links = generateTradingLinks(instrument, nativeSymbols);
 
         return new ArbitrageData(
                 instrument,

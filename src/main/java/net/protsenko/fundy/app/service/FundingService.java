@@ -53,8 +53,8 @@ public class FundingService extends BaseExchangeService {
     }
 
     private Stream<FundingRateData> loadExchangeData(ExchangeClient client,
-                                                      BigDecimal minFr,
-                                                      Map<String, Map<ExchangeType, String>> uni) {
+                                                     BigDecimal minFr,
+                                                     Map<String, Map<ExchangeType, String>> uni) {
         try {
             ExchangeType ex = client.getExchangeType();
 
@@ -95,11 +95,10 @@ public class FundingService extends BaseExchangeService {
                 if (targets.isEmpty()) return Stream.empty();
 
                 return client.getFundingRates(targets).stream()
-                        .map(funding -> {
-                            String canonicalKey = SymbolNormalizer.canonicalKey(funding.instrument());
+                        .peek(funding -> {
+                            String canonicalKey = SymbolNormalizer.canonicalKey(funding.instrument(), false);
                             result.computeIfAbsent(canonicalKey, k -> new EnumMap<>(ExchangeType.class))
                                     .put(ex, funding);
-                            return funding;
                         });
             } catch (Exception e) {
                 log.warn("Failed to get funding data from {}: {}", client.getExchangeType(), e.getMessage());

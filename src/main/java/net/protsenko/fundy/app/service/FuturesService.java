@@ -111,11 +111,10 @@ public class FuturesService extends BaseExchangeService {
                 if (targets.isEmpty()) return Stream.empty();
 
                 return client.getFuturesTickers(targets).stream()
-                        .map(ticker -> {
-                            String canonicalKey = SymbolNormalizer.canonicalKey(ticker.instrument());
+                        .peek(ticker -> {
+                            String canonicalKey = SymbolNormalizer.canonicalKey(ticker.instrument(), false);
                             result.computeIfAbsent(canonicalKey, k -> new EnumMap<>(ExchangeType.class))
                                     .put(ex, ticker);
-                            return ticker;
                         });
             } catch (Exception e) {
                 log.warn("Failed to get futures price data from {}: {}", client.getExchangeType(), e.getMessage());
