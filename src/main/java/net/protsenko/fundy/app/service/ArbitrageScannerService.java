@@ -54,7 +54,6 @@ public class ArbitrageScannerService {
                 .collect(Collectors.toList());
     }
 
-
     private ArbitrageData analyzeArbitrageOpportunity(
             String canonicalKey,
             Map<ExchangeType, TickerData> prices,

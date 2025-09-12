@@ -12,6 +12,9 @@ spring:
 
 server:
   port: ${SERVER_PORT_INTERNAL}
+  tomcat:
+    connection-timeout: 60000
+    keep-alive-timeout: 60000
 
 logging:
   level:
@@ -39,9 +42,9 @@ fundy:
     exchange:
       instruments-ttl: 30m
       instruments-max-size: 5000
-      tickers-ttl: 2s
+      tickers-ttl: 30s
       tickers-max-size: 50000
-      funding-ttl: 90s
+      funding-ttl: 5m
       funding-max-size: 50000
   exchanges:
     bybit:

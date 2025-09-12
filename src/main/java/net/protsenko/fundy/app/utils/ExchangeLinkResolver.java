@@ -70,7 +70,9 @@ public final class ExchangeLinkResolver {
                 }
             }
             case KUCOIN -> {
-                String core = nativeSymbol.endsWith("M") ? nativeSymbol.substring(0, nativeSymbol.length() - 1) : nativeSymbol;
+                String core = nativeSymbol.endsWith("M")
+                        ? nativeSymbol.substring(0, nativeSymbol.length() - 1)
+                        : nativeSymbol;
                 return splitByKnownQuote(core);
             }
             case BITGET -> {

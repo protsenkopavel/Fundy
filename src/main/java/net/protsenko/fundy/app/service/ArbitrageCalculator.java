@@ -2,7 +2,6 @@ package net.protsenko.fundy.app.service;
 
 import net.protsenko.fundy.app.domain.FundingSpread;
 import net.protsenko.fundy.app.domain.PriceSpread;
-import net.protsenko.fundy.app.dto.rs.ArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeType;

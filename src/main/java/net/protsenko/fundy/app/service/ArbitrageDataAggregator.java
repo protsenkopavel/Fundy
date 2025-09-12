@@ -18,16 +18,17 @@ public class ArbitrageDataAggregator {
 
     public MarketData collectMarketData(Set<ExchangeType> exchanges) {
         Map<String, Map<ExchangeType, TickerData>> priceData =
-            futuresService.collectFuturesPriceData(exchanges);
+                futuresService.collectFuturesPriceData(exchanges);
 
         Map<String, Map<ExchangeType, FundingRateData>> fundingData =
-            fundingService.collectFundingData(exchanges);
+                fundingService.collectFundingData(exchanges);
 
         return new MarketData(priceData, fundingData);
     }
 
     public record MarketData(
-        Map<String, Map<ExchangeType, TickerData>> priceData,
-        Map<String, Map<ExchangeType, FundingRateData>> fundingData
-    ) {}
+            Map<String, Map<ExchangeType, TickerData>> priceData,
+            Map<String, Map<ExchangeType, FundingRateData>> fundingData
+    ) {
+    }
 }

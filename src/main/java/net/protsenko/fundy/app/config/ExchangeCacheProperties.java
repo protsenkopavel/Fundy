@@ -13,9 +13,9 @@ public class ExchangeCacheProperties {
     private Duration instrumentsTtl = Duration.ofMinutes(30);
     private long instrumentsMaxSize = 5_000;
 
-    private Duration tickersTtl = Duration.ofSeconds(2);
+    private Duration tickersTtl = Duration.ofSeconds(30);
     private long tickersMaxSize = 50_000;
 
-    private Duration fundingTtl = Duration.ofSeconds(90);
+    private Duration fundingTtl = Duration.ofMinutes(5);
     private long fundingMaxSize = 50_000;
 }
