@@ -3,7 +3,9 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
 declare const process: any;
-const backend = process.env.BACKEND_URL || process.env.VITE_BACKEND_URL || 'http://localhost:8080';
+const backendHost = process.env.BACKEND_HOST || 'localhost';
+const backendPort = process.env.BACKEND_PORT || '8080';
+const backend = `http://${backendHost}:${backendPort}`;
 
 export default defineConfig({
   plugins: [react()],
