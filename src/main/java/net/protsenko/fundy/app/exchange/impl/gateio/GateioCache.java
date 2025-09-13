@@ -64,11 +64,6 @@ public class GateioCache implements ExchangeMappingSupport {
         List<GateioSpotTickerItem> resp = http.get(url, cfg.getTimeout(), new TypeReference<>() {
         });
         require(resp != null, () -> "GateIO spot tickers: null response");
-        return resp.stream()
-                .collect(Collectors.toMap(
-                        GateioSpotTickerItem::currencyPair,
-                        item -> item,
-                        (existing, replacement) -> existing
-                ));
+        return indexByCanonical(resp, GateioSpotTickerItem::currencyPair);
     }
 }

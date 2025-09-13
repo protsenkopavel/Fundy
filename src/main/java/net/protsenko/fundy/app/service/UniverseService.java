@@ -2,7 +2,6 @@ package net.protsenko.fundy.app.service;
 
 import net.protsenko.fundy.app.domain.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
-import net.protsenko.fundy.app.exchange.ExchangeClient;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.utils.SymbolNormalizer;
