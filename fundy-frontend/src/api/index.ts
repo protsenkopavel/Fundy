@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Exchange, Token, FundingRow, ArbitrageRow, ArbitrageRequest, FeedbackPayload } from './types';
+import type { Exchange, Token, FundingRow, ArbitrageRow, ArbitrageRequest, SpotArbitrageRow, SpotArbitrageRequest, FeedbackPayload } from './types';
 
 export const getExchanges = async (): Promise<Exchange[]> =>
     (await api.get('/market/data/exchanges')).data;
@@ -32,7 +32,10 @@ export const postFunding = async (req: {exchanges?: string[]; minFundingRate?: s
     (await api.post('/market/funding/opportunities', req)).data;
 
 export const postArbitrage = async (req: ArbitrageRequest): Promise<ArbitrageRow[]> =>
-    (await api.post('/market/arbitrage/opportunities', req)).data;
+    (await api.post('/market/arbitrage/futures/opportunities', req)).data;
+
+export const postSpotArbitrage = async (req: SpotArbitrageRequest): Promise<SpotArbitrageRow[]> =>
+    (await api.post('/market/arbitrage/spot/opportunities', req)).data;
 
 export const postFeedback = (p: FeedbackPayload) =>
     api.post('/meta/feedback', p).then(r => r.data);

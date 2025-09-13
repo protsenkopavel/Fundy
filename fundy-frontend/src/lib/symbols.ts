@@ -55,3 +55,15 @@ export const fmtTs = (ts?: number | string | null, timeZone?: string) => {
         return fmt.format(new Date(n));
     } catch { return new Date(n).toLocaleString(); }
 };
+
+export const fmtVolume = (v?: number | string | null) => {
+    const n = v == null ? NaN : Number(v);
+    if (Number.isNaN(n)) return '—';
+
+    const abs = Math.abs(n);
+    if (abs >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
+    if (abs >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+    if (abs >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+    if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+    return n.toFixed(0);
+};

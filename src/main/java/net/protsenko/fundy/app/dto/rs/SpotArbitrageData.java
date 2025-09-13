@@ -7,11 +7,14 @@ import java.util.Map;
 
 public record SpotArbitrageData(
         String coin,
+        String pair,
         ExchangeType buyExchange,
-        boolean withdrawalEnabled,
+        DepositWithdrawStatus withdrawalStatus,
         ExchangeType sellExchange,
-        boolean depositEnabled,
+        DepositWithdrawStatus depositStatus,
         BigDecimal priceSpread,
+        BigDecimal buyPrice,
+        BigDecimal sellPrice,
         BigDecimal buyVolume24h,
         BigDecimal sellVolume24h,
         Map<ExchangeType, String> links

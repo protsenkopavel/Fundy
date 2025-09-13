@@ -4,7 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import net.protsenko.fundy.app.dto.rq.FuturesArbitrageRequest;
 import net.protsenko.fundy.app.dto.rq.SpotArbitrageRequest;
-import net.protsenko.fundy.app.dto.rs.ArbitrageData;
+import net.protsenko.fundy.app.dto.rs.FuturesArbitrageData;
 import net.protsenko.fundy.app.dto.rs.SpotArbitrageData;
 import net.protsenko.fundy.app.service.FuturesArbitrageScannerService;
 import net.protsenko.fundy.app.service.SpotArbitrageService;
@@ -31,7 +31,8 @@ public class ArbitrageController {
     }
 
     @PostMapping("/futures/opportunities")
-    public List<ArbitrageData> getFuturesArbitrageOpportunities(@Valid @RequestBody FuturesArbitrageRequest request) {
+    public List<FuturesArbitrageData> getFuturesArbitrageOpportunities(
+            @Valid @RequestBody FuturesArbitrageRequest request) {
         return futuresArbitrageScannerService.getArbitrageOpportunities(request);
     }
 }

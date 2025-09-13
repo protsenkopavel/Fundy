@@ -14,6 +14,7 @@ type Props = {
     // доп. фильтры (страницы сами решают передавать)
     minRate?: string; setMinRate?: (v: string) => void;
     minPriceSpread?: string; setMinPriceSpread?: (v: string) => void;
+    maxPriceSpread?: string; setMaxPriceSpread?: (v: string) => void;
     sameAccrualTime?: boolean; setSameAccrualTime?: (v: boolean) => void;
 
     // тайм-зоны
@@ -47,6 +48,14 @@ export default function ScanToolbar(p: Props) {
                 <TextField
                     label="Мин. ценовой спред (%)" placeholder="0.1"
                     value={p.minPriceSpread ?? ''} onChange={e => p.setMinPriceSpread!(e.target.value)}
+                    type="number" inputProps={{step: 0.1, min: 0}} sx={{width: 180}} size="small"
+                />
+            )}
+
+            {p.setMaxPriceSpread && (
+                <TextField
+                    label="Макс. ценовой спред (%)" placeholder="10.0"
+                    value={p.maxPriceSpread ?? ''} onChange={e => p.setMaxPriceSpread!(e.target.value)}
                     type="number" inputProps={{step: 0.1, min: 0}} sx={{width: 180}} size="small"
                 />
             )}

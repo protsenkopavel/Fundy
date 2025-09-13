@@ -7,7 +7,7 @@ import net.protsenko.fundy.app.domain.CanonicalInstrument;
 import net.protsenko.fundy.app.domain.FundingSpread;
 import net.protsenko.fundy.app.domain.PriceSpread;
 import net.protsenko.fundy.app.dto.rq.FuturesArbitrageRequest;
-import net.protsenko.fundy.app.dto.rs.ArbitrageData;
+import net.protsenko.fundy.app.dto.rs.FuturesArbitrageData;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
@@ -29,7 +29,7 @@ public class FuturesArbitrageScannerService {
     private final FuturesArbitrageAnalyzer analyzer;
     private final FuturesArbitrageTimeFilter timeFilter;
 
-    public List<ArbitrageData> getArbitrageOpportunities(FuturesArbitrageRequest req) {
+    public List<FuturesArbitrageData> getArbitrageOpportunities(FuturesArbitrageRequest req) {
         Set<ExchangeType> exchanges = req.effectiveExchanges();
         FuturesArbitrageDataAggregator.MarketData marketData = dataAggregator.collectMarketData(exchanges);
 
@@ -54,7 +54,7 @@ public class FuturesArbitrageScannerService {
                 .collect(Collectors.toList());
     }
 
-    private ArbitrageData analyzeArbitrageOpportunity(
+    private FuturesArbitrageData analyzeArbitrageOpportunity(
             String canonicalKey,
             Map<ExchangeType, TickerData> prices,
             Map<ExchangeType, FundingRateData> fundingRates,
@@ -125,14 +125,14 @@ public class FuturesArbitrageScannerService {
                 ));
         Map<ExchangeType, String> links = generateTradingLinks(instrument, nativeSymbols);
 
-        return new ArbitrageData(
+        return new FuturesArbitrageData(
                 instrument,
                 priceMap,
                 fundingMap,
                 nextFundingTsMap,
                 bestOpportunity.priceSpread(),
                 bestOpportunity.fundingSpread(),
-                new ArbitrageData.Decision(bestOpportunity.longExchange(), bestOpportunity.shortExchange()),
+                new FuturesArbitrageData.Decision(bestOpportunity.longExchange(), bestOpportunity.shortExchange()),
                 links
         );
     }

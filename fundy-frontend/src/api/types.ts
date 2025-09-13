@@ -27,6 +27,29 @@ export type ArbitrageRequest = {
     sameAccrualTime?: boolean;
 };
 
+export type DepositWithdrawStatus = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
+
+export type SpotArbitrageRow = {
+    coin: string;
+    pair: string;
+    buyExchange: string;
+    withdrawalStatus: string;
+    sellExchange: string;
+    depositStatus: string;
+    priceSpread: number;
+    buyPrice: number;
+    sellPrice: number;
+    buyVolume24h: number;
+    sellVolume24h: number;
+    links: Record<string, string>;
+};
+
+export type SpotArbitrageRequest = {
+    exchanges?: string[];
+    minSpread?: number;
+    maxSpread?: number;
+};
+
 export type FeedbackPayload = {
     type: 'bug' | 'idea' | 'question';
     severity?: 'low' | 'normal' | 'high' | 'critical';

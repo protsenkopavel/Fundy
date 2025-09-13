@@ -7,7 +7,7 @@ import net.protsenko.fundy.app.exchange.ExchangeType;
 import java.math.BigDecimal;
 import java.util.Map;
 
-public record ArbitrageData(
+public record FuturesArbitrageData(
         CanonicalInstrument instrument,
         Map<ExchangeType, BigDecimal> prices,
         Map<ExchangeType, BigDecimal> fundingRates,

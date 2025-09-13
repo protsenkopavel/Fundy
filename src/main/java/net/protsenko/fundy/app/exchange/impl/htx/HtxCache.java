@@ -3,7 +3,6 @@ package net.protsenko.fundy.app.exchange.impl.htx;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import net.protsenko.fundy.app.exchange.ExchangeType;
-import net.protsenko.fundy.app.exchange.impl.bitget.BitgetSpotTickerItem;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.HtxConfig;
 import net.protsenko.fundy.app.utils.HttpExecutor;

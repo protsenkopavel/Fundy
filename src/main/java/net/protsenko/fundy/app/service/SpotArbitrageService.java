@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.domain.CanonicalInstrument;
 import net.protsenko.fundy.app.dto.rq.SpotArbitrageRequest;
+import net.protsenko.fundy.app.dto.rs.DepositWithdrawStatus;
 import net.protsenko.fundy.app.dto.rs.SpotArbitrageData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.dto.rs.WithdrawalDepositStatus;
@@ -30,6 +31,7 @@ public class SpotArbitrageService {
     public List<SpotArbitrageData> getSpotArbitrageOpportunities(SpotArbitrageRequest request) {
         Set<ExchangeType> exchanges = request.effectiveExchanges();
         BigDecimal minSpread = request.effectiveMinSpread();
+        BigDecimal maxSpread = request.effectiveMaxSpread();
 
         Map<String, Map<ExchangeType, TickerData>> priceData = spotService.collectSpotPriceData(exchanges);
         Map<String, Map<ExchangeType, String>> universe = universeService.spotUniverse(exchanges);
@@ -47,6 +49,7 @@ public class SpotArbitrageService {
                 })
                 .filter(Objects::nonNull)
                 .filter(opportunity -> opportunity.priceSpread().compareTo(minSpread) >= 0)
+                .filter(opportunity -> opportunity.priceSpread().compareTo(maxSpread) <= 0)
                 .sorted((a, b) -> b.priceSpread().compareTo(a.priceSpread()))
                 .collect(Collectors.toList());
     }
@@ -90,11 +93,14 @@ public class SpotArbitrageService {
 
         return new SpotArbitrageData(
                 coin,
+                canonicalKey.replace("/", ""),
                 buyOpportunity.exchange,
-                buyOpportunity.canWithdraw,
+                buyOpportunity.withdrawStatus,
                 sellOpportunity.exchange,
-                sellOpportunity.canDeposit,
+                sellOpportunity.depositStatus,
                 spread,
+                buyOpportunity.price,
+                sellOpportunity.price,
                 buyOpportunity.volume24h,
                 sellOpportunity.volume24h,
                 links
@@ -102,30 +108,6 @@ public class SpotArbitrageService {
     }
 
     private ExchangePrice findBestBuyOpportunity(String coin,
-                                                 Map<ExchangeType, TickerData> prices,
-                                                 Set<ExchangeType> targetExchanges) {
-        return prices.entrySet().stream()
-                .filter(entry -> targetExchanges.contains(entry.getKey()))
-                .map(entry -> {
-                    ExchangeType exchange = entry.getKey();
-                    TickerData ticker = entry.getValue();
-
-                    boolean canWithdraw = getWithdrawalStatus(exchange, coin);
-
-                    return new ExchangePrice(
-                            exchange,
-                            ticker.lastPrice(),
-                            ticker.volume24h(),
-                            canWithdraw,
-                            true
-                    );
-                })
-                .filter(ep -> ep.canWithdraw)
-                .min(Comparator.comparing(ep -> ep.price))
-                .orElse(null);
-    }
-
-    private ExchangePrice findBestSellOpportunity(String coin,
                                                   Map<ExchangeType, TickerData> prices,
                                                   Set<ExchangeType> targetExchanges) {
         return prices.entrySet().stream()
@@ -134,45 +116,71 @@ public class SpotArbitrageService {
                     ExchangeType exchange = entry.getKey();
                     TickerData ticker = entry.getValue();
 
-                    boolean canDeposit = getDepositStatus(exchange, coin);
+                    DepositWithdrawStatus withdrawStatus = getWithdrawalStatus(exchange, coin);
 
                     return new ExchangePrice(
                             exchange,
                             ticker.lastPrice(),
                             ticker.volume24h(),
-                            true,
-                            canDeposit
+                            withdrawStatus,
+                            DepositWithdrawStatus.ENABLED
                     );
                 })
-                .filter(ep -> ep.canDeposit)
+                .filter(ep -> ep.withdrawStatus == DepositWithdrawStatus.ENABLED
+                        || ep.withdrawStatus == DepositWithdrawStatus.UNKNOWN)
+                .min(Comparator.comparing(ep -> ep.price))
+                .orElse(null);
+    }
+
+    private ExchangePrice findBestSellOpportunity(String coin,
+                                                   Map<ExchangeType, TickerData> prices,
+                                                   Set<ExchangeType> targetExchanges) {
+        return prices.entrySet().stream()
+                .filter(entry -> targetExchanges.contains(entry.getKey()))
+                .map(entry -> {
+                    ExchangeType exchange = entry.getKey();
+                    TickerData ticker = entry.getValue();
+
+                    DepositWithdrawStatus depositStatus = getDepositStatus(exchange, coin);
+
+                    return new ExchangePrice(
+                            exchange,
+                            ticker.lastPrice(),
+                            ticker.volume24h(),
+                            DepositWithdrawStatus.ENABLED,
+                            depositStatus
+                    );
+                })
+                .filter(ep -> ep.depositStatus == DepositWithdrawStatus.ENABLED
+                        || ep.depositStatus == DepositWithdrawStatus.UNKNOWN)
                 .max(Comparator.comparing(ep -> ep.price))
                 .orElse(null);
     }
 
-    private boolean getWithdrawalStatus(ExchangeType exchange, String asset) {
+    private DepositWithdrawStatus getWithdrawalStatus(ExchangeType exchange, String asset) {
         try {
             SpotExchangeClient client = exchangeClientFactory.getSpotClient(exchange);
             if (client != null) {
                 WithdrawalDepositStatus status = client.getWithdrawalDepositStatus(asset);
-                return status.canWithdraw();
+                return status.withdrawStatus();
             }
         } catch (Exception e) {
             log.warn("Failed to get withdrawal status for {} on {}: {}", asset, exchange, e.getMessage());
         }
-        return true;
+        return DepositWithdrawStatus.UNKNOWN;
     }
 
-    private boolean getDepositStatus(ExchangeType exchange, String asset) {
+    private DepositWithdrawStatus getDepositStatus(ExchangeType exchange, String asset) {
         try {
             SpotExchangeClient client = exchangeClientFactory.getSpotClient(exchange);
             if (client != null) {
                 WithdrawalDepositStatus status = client.getWithdrawalDepositStatus(asset);
-                return status.canDeposit();
+                return status.depositStatus();
             }
         } catch (Exception e) {
             log.warn("Failed to get deposit status for {} on {}: {}", asset, exchange, e.getMessage());
         }
-        return true;
+        return DepositWithdrawStatus.UNKNOWN;
     }
 
     private BigDecimal calculatePriceSpread(BigDecimal buyPrice, BigDecimal sellPrice) {
@@ -187,7 +195,7 @@ public class SpotArbitrageService {
         return canonicalKey.split("/")[0];
     }
 
-    private record ExchangePrice(ExchangeType exchange, BigDecimal price, BigDecimal volume24h, boolean canWithdraw,
-                                 boolean canDeposit) {
+    private record ExchangePrice(ExchangeType exchange, BigDecimal price, BigDecimal volume24h,
+                                  DepositWithdrawStatus withdrawStatus, DepositWithdrawStatus depositStatus) {
     }
 }

@@ -95,7 +95,9 @@ public class CoinexCache implements ExchangeMappingSupport {
         require(resp != null && resp.code() == 0 && resp.data() != null && resp.data().ticker() != null,
                 () -> "CoinEx spot tickers error: " + (resp != null ? resp.message() : "null"));
         return indexByCanonical(resp.data().ticker().entrySet().stream()
-                .map(e -> new CoinexSpotTickerItem(e.getKey(), e.getValue().last(), e.getValue().buy(), e.getValue().sell(), e.getValue().high(), e.getValue().low(), e.getValue().vol(), e.getValue().buyAmount(), "0"))
+                .map(e -> new CoinexSpotTickerItem(e.getKey(), e.getValue().last(), e.getValue().buy(),
+                        e.getValue().sell(), e.getValue().high(), e.getValue().low(), e.getValue().vol(),
+                        e.getValue().buyAmount(), "0"))
                 .toList(), CoinexSpotTickerItem::market);
     }
 }

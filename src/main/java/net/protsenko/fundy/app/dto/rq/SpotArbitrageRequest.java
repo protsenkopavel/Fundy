@@ -10,7 +10,9 @@ import java.util.Set;
 public record SpotArbitrageRequest(
         Set<ExchangeType> exchanges,
         @DecimalMin(value = "0.0", inclusive = false)
-        BigDecimal minSpread
+        BigDecimal minSpread,
+        @DecimalMin(value = "0.0", inclusive = false)
+        BigDecimal maxSpread
 ) {
     public Set<ExchangeType> effectiveExchanges() {
         return (exchanges == null || exchanges.isEmpty())
@@ -20,5 +22,9 @@ public record SpotArbitrageRequest(
 
     public BigDecimal effectiveMinSpread() {
         return minSpread != null ? minSpread : BigDecimal.valueOf(0.1);
+    }
+
+    public BigDecimal effectiveMaxSpread() {
+        return maxSpread != null ? maxSpread : BigDecimal.valueOf(10.0);
     }
 }

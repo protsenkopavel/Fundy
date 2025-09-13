@@ -6,6 +6,7 @@ import net.protsenko.fundy.app.domain.InstrumentType;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.dto.rs.WithdrawalDepositStatus;
+import net.protsenko.fundy.app.dto.rs.DepositWithdrawStatus;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.SpotExchangeClient;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
@@ -53,8 +54,8 @@ public class OkxSpotExchangeClient implements SpotExchangeClient, ExchangeMappin
         return new WithdrawalDepositStatus(
                 getExchangeType(),
                 asset,
-                true,
-                true,
+                DepositWithdrawStatus.UNKNOWN,
+                DepositWithdrawStatus.UNKNOWN,
                 System.currentTimeMillis()
         );
     }

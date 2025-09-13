@@ -3,6 +3,7 @@ package net.protsenko.fundy.app.service;
 import net.protsenko.fundy.app.domain.FundingSpread;
 import net.protsenko.fundy.app.domain.PriceSpread;
 import net.protsenko.fundy.app.dto.rs.FundingRateData;
+import net.protsenko.fundy.app.dto.rs.FuturesArbitrageData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import org.springframework.stereotype.Component;
@@ -119,7 +120,7 @@ public class FuturesArbitrageCalculator {
                 (priceSpread.ex1().equals(fundingSpread.ex2()) && priceSpread.ex2().equals(fundingSpread.ex1()));
     }
 
-    public BigDecimal calculateCombinedSpread(net.protsenko.fundy.app.dto.rs.ArbitrageData data) {
+    public BigDecimal calculateCombinedSpread(FuturesArbitrageData data) {
         return data.priceSpread().abs().add(data.fundingSpread().abs());
     }
 }
