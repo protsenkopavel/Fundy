@@ -41,6 +41,13 @@ public final class ExchangeLinkResolver {
         return buildUrl(ex, base, q);
     }
 
+    public static String spotLink(ExchangeType ex, String nativeSymbol, String quote) {
+        String[] pq = splitSymbol(ex, nativeSymbol);
+        String base = pq[0];
+        String q = pq[1] != null ? pq[1] : defaultQuote(safeUpper(quote));
+        return buildSpotUrl(ex, base, q);
+    }
+
     private static String[] splitSymbol(ExchangeType ex, String nativeSymbol) {
         switch (ex) {
             case BYBIT, BINGX, HTX -> {
@@ -48,7 +55,7 @@ public final class ExchangeLinkResolver {
                 if (parts.length > 1) {
                     return new String[]{parts[0], parts[1]};
                 } else {
-                    return new String[]{nativeSymbol, null};
+                    return splitByKnownQuote(nativeSymbol);
                 }
             }
             case OKX -> {
@@ -66,14 +73,15 @@ public final class ExchangeLinkResolver {
                 if (parts.length > 1) {
                     return new String[]{parts[0], parts[1]};
                 } else {
-                    return new String[]{nativeSymbol, null};
+                    return splitByKnownQuote(nativeSymbol);
                 }
             }
             case KUCOIN -> {
                 String core = nativeSymbol.endsWith("M")
                         ? nativeSymbol.substring(0, nativeSymbol.length() - 1)
                         : nativeSymbol;
-                return splitByKnownQuote(core);
+                core = core.replaceAll("--+", "-");
+                return new String[]{core, null};
             }
             case BITGET -> {
                 int i = nativeSymbol.indexOf('_');
@@ -119,6 +127,29 @@ public final class ExchangeLinkResolver {
                     "https://www.coinex.com/en/futures/" + (base + "-" + quote).toLowerCase(Locale.ROOT);
             case BINGX ->   // https://bingx.com/en/perpetual/BTC-USDT
                     "https://bingx.com/en/perpetual/" + base + "-" + quote;
+        };
+    }
+
+    private static String buildSpotUrl(ExchangeType ex, String base, String quote) {
+        return switch (ex) {
+            case BYBIT ->   // https://www.bybit.com/en/trade/spot/ZERO/USDT
+                    "https://www.bybit.com/en/trade/spot/" + base + "/" + quote;
+            case MEXC ->    // https://www.mexc.com/ru-RU/exchange/WXT_USDT
+                    "https://www.mexc.com/ru-RU/exchange/" + base + "_" + quote;
+            case KUCOIN ->  // https://www.kucoin.com/trade/AAVE3L-USDT
+                    "https://www.kucoin.com/trade/" + base;
+            case BITGET ->  // https://www.bitget.com/spot/BTCUSDT
+                    "https://www.bitget.com/spot/" + base + quote;
+            case HTX ->     // https://www.htx.com/trade/uro_usdt?type=spot
+                    "https://www.htx.com/trade/" + base.toLowerCase(Locale.ROOT) + "_" + quote.toLowerCase(Locale.ROOT) + "?type=spot";
+            case OKX ->     // https://www.okx.com/trade-spot/btc-usdt
+                    "https://www.okx.com/trade-spot/" + (base + "-" + quote).toLowerCase(Locale.ROOT);
+            case GATEIO ->  // https://www.gate.com/trade/BTC_USDT
+                    "https://www.gate.com/trade/" + base + "_" + quote;
+            case COINEX ->  // https://www.coinex.com/en/exchange/tomi-usdt
+                    "https://www.coinex.com/en/exchange/" + (base + "-" + quote).toLowerCase(Locale.ROOT);
+            case BINGX ->   // https://bingx.com/en/spot/XOUSDT
+                    "https://bingx.com/en/spot/" + base + quote;
         };
     }
 
