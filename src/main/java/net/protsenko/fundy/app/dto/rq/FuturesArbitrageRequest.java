@@ -9,7 +9,9 @@ import java.util.Set;
 public record FuturesArbitrageRequest(
         Set<ExchangeType> exchanges,
         BigDecimal minFundingRate,
+        BigDecimal maxFundingRate,
         BigDecimal minPerpetualPrice,
+        BigDecimal maxPerpetualPrice,
         Boolean sameAccrualTime
 ) {
     public Set<ExchangeType> effectiveExchanges() {
@@ -28,6 +30,18 @@ public record FuturesArbitrageRequest(
         return minPerpetualPrice == null
                 ? BigDecimal.ZERO
                 : minPerpetualPrice;
+    }
+
+    public BigDecimal maxFr() {
+        return maxFundingRate == null
+                ? new BigDecimal("100")
+                : maxFundingRate;
+    }
+
+    public BigDecimal maxPr() {
+        return maxPerpetualPrice == null
+                ? new BigDecimal("100")
+                : maxPerpetualPrice;
     }
 
 }

@@ -122,7 +122,7 @@ export default function SpotArbitragePage() {
                         fontFamily: '"Roboto Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
                         fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3
                     }}>
-                        {String(p.row?.pair ?? '')}
+                        {String(`${p.row?.instrument?.base ?? ''}/${p.row?.instrument?.quote ?? ''}`)}
                     </Box>
                 )
             },
@@ -266,9 +266,6 @@ export default function SpotArbitragePage() {
         <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, height: 'calc(100dvh - 120px)'}}>
             <ScanToolbar
                 exchanges={exchangesQuery.data ?? []}
-                timeZone="UTC"
-                timeZones={["UTC"]}
-                timeZoneValue="UTC" setTimeZoneValue={() => {}}
                 loading={arbQuery.isFetching}
                 onScan={handleScan}
                 onReset={handleReset}
@@ -281,7 +278,7 @@ export default function SpotArbitragePage() {
                 <DataGrid
                     rows={rows}
                     columns={columns.length ? columns : [{field: 'coin', headerName: 'Монета', width: 140}]}
-                    getRowId={(r) => `${r.coin}-${r.buyExchange}-${r.sellExchange}`}
+                    getRowId={(r) => `${r.instrument?.base ?? ''}-${r.buyExchange}-${r.sellExchange}`}
                     loading={arbQuery.isFetching}
                     slots={{toolbar: GridToolbar, loadingOverlay: CenterOverlay}}
                     slotProps={{toolbar: {showQuickFilter: true, quickFilterProps: {debounceMs: 300}}}}

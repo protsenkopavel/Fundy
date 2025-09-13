@@ -13,14 +13,15 @@ type Props = {
 
     // доп. фильтры (страницы сами решают передавать)
     minRate?: string; setMinRate?: (v: string) => void;
+    maxRate?: string; setMaxRate?: (v: string) => void;
     minPriceSpread?: string; setMinPriceSpread?: (v: string) => void;
     maxPriceSpread?: string; setMaxPriceSpread?: (v: string) => void;
     sameAccrualTime?: boolean; setSameAccrualTime?: (v: boolean) => void;
 
-    // тайм-зоны
-    timeZone: string;
-    timeZones: string[];
-    timeZoneValue: string; setTimeZoneValue: (v: string) => void;
+    // тайм-зоны (опционально)
+    timeZone?: string;
+    timeZones?: string[];
+    timeZoneValue?: string; setTimeZoneValue?: (v: string) => void;
 };
 
 export default function ScanToolbar(p: Props) {
@@ -44,6 +45,14 @@ export default function ScanToolbar(p: Props) {
                 />
             )}
 
+            {p.setMaxRate && (
+                <TextField
+                    label="Макс. фандинг (%)" placeholder="10.0"
+                    value={p.maxRate ?? ''} onChange={e => p.setMaxRate!(e.target.value)}
+                    type="number" inputProps={{step: 0.05, min: 0}} sx={{width: 160}} size="small"
+                />
+            )}
+
             {p.setMinPriceSpread && (
                 <TextField
                     label="Мин. ценовой спред (%)" placeholder="0.1"
@@ -60,14 +69,16 @@ export default function ScanToolbar(p: Props) {
                 />
             )}
 
-            <Autocomplete
-                options={p.timeZones}
-                value={p.timeZoneValue}
-                onChange={(_, v) => p.setTimeZoneValue(v || p.timeZone)}
-                isOptionEqualToValue={(o, v) => o === v}
-                renderInput={(params) => <TextField {...params} label="Часовой пояс" size="small"/>}
-                sx={{width: 280}}
-            />
+            {p.timeZones && p.timeZoneValue !== undefined && p.setTimeZoneValue && (
+                <Autocomplete
+                    options={p.timeZones}
+                    value={p.timeZoneValue}
+                    onChange={(_, v) => p.setTimeZoneValue(v || p.timeZone)}
+                    isOptionEqualToValue={(o, v) => o === v}
+                    renderInput={(params) => <TextField {...params} label="Часовой пояс" size="small"/>}
+                    sx={{width: 280}}
+                />
+            )}
 
             {p.setSameAccrualTime && (
                 <FormControlLabel

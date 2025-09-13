@@ -22,7 +22,9 @@ export type ArbitrageRow = {
 export type ArbitrageRequest = {
     exchanges?: string[];
     minFundingRate?: number;   // 0.001 == 0.1%
+    maxFundingRate?: number;
     minPerpetualPrice?: number;
+    maxPerpetualPrice?: number;
     timeZone?: string;
     sameAccrualTime?: boolean;
 };

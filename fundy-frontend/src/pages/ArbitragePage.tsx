@@ -35,7 +35,9 @@ export default function ArbitragePage() {
 
     const [selExchanges, setSelExchanges] = useState<Exchange[]>([]);
     const [minRate, setMinRate] = useState<string>('');
+    const [maxRate, setMaxRate] = useState<string>('');
     const [minPriceSpread, setMinPriceSpread] = useState<string>('');
+    const [maxPriceSpread, setMaxPriceSpread] = useState<string>('');
     const [timeZone, setTimeZone] = useState<string>(tzDefault);
     const [sameAccrualTime, setSameAccrualTime] = useState<boolean>(false);
 
@@ -45,12 +47,16 @@ export default function ArbitragePage() {
         const exParam = searchParams.get('ex');
         const tzParam = searchParams.get('tz');
         const mrParam = searchParams.get('min');
+        const maxrParam = searchParams.get('max');
         const mpsParam = searchParams.get('mps');
+        const maxpsParam = searchParams.get('maxps');
         const satParam = searchParams.get('sat');
 
         if (tzParam) setTimeZone(tzParam);
         if (mrParam) setMinRate(mrParam);
+        if (maxrParam) setMaxRate(maxrParam);
         if (mpsParam) setMinPriceSpread(mpsParam);
+        if (maxpsParam) setMaxPriceSpread(maxpsParam);
         if (satParam) setSameAccrualTime(satParam === 'true');
 
         if (exParam) {
@@ -68,7 +74,9 @@ export default function ArbitragePage() {
             ex: exCodes || undefined,
             tz: timeZone || undefined,
             min: minRate || undefined,
+            max: maxRate || undefined,
             mps: minPriceSpread || undefined,
+            maxps: maxPriceSpread || undefined,
             sat: sameAccrualTime ? 'true' : undefined,
         };
         let changed = false;
@@ -81,7 +89,7 @@ export default function ArbitragePage() {
         }
         if (changed) setSearchParams(next, {replace: true});
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selExchanges, timeZone, minRate, minPriceSpread, sameAccrualTime]);
+    }, [selExchanges, timeZone, minRate, maxRate, minPriceSpread, maxPriceSpread, sameAccrualTime]);
 
     const [rows, setRows] = useState<any[]>([]);
     const [exchangeList, setExchangeList] = useState<string[]>([]);
@@ -284,12 +292,16 @@ export default function ArbitragePage() {
 
     const handleScan = () => {
         const minFunding = minRate ? Number(minRate) / 100 : undefined;
+        const maxFunding = maxRate ? Number(maxRate) / 100 : undefined;
         const minPriceSpreadPct = minPriceSpread ? Number(minPriceSpread) / 100 : undefined;
+        const maxPriceSpreadPct = maxPriceSpread ? Number(maxPriceSpread) / 100 : undefined;
 
         lastReqRef.current = {
             exchanges: selExchanges.length ? selExchanges.map(e => e.code ?? e.name) : undefined,
             minFundingRate: Number.isFinite(minFunding as number) ? minFunding : undefined,
+            maxFundingRate: Number.isFinite(maxFunding as number) ? maxFunding : undefined,
             minPerpetualPrice: Number.isFinite(minPriceSpreadPct as number) ? minPriceSpreadPct : undefined,
+            maxPerpetualPrice: Number.isFinite(maxPriceSpreadPct as number) ? maxPriceSpreadPct : undefined,
             timeZone,
             sameAccrualTime: sameAccrualTime || undefined
         };
@@ -299,7 +311,9 @@ export default function ArbitragePage() {
     const handleReset = () => {
         setSelExchanges([]);
         setMinRate('');
+        setMaxRate('');
         setMinPriceSpread('');
+        setMaxPriceSpread('');
         setTimeZone(tzDefault);
         setSameAccrualTime(false);
     };
@@ -317,7 +331,9 @@ export default function ArbitragePage() {
                 onReset={handleReset}
                 selExchanges={selExchanges} setSelExchanges={setSelExchanges}
                 minRate={minRate} setMinRate={setMinRate}
+                maxRate={maxRate} setMaxRate={setMaxRate}
                 minPriceSpread={minPriceSpread} setMinPriceSpread={setMinPriceSpread}
+                maxPriceSpread={maxPriceSpread} setMaxPriceSpread={setMaxPriceSpread}
                 timeZoneValue={timeZone} setTimeZoneValue={setTimeZone}
                 sameAccrualTime={sameAccrualTime} setSameAccrualTime={setSameAccrualTime}
             />

@@ -41,7 +41,9 @@ public class FuturesArbitrageAnalyzer {
                 BigDecimal fundingArbSpread = fundingSpread.spread().abs();
 
                 if (priceArbSpread.compareTo(req.minPr()) < 0 ||
-                        fundingArbSpread.compareTo(req.minFr()) < 0) continue;
+                        fundingArbSpread.compareTo(req.minFr()) < 0 ||
+                        priceArbSpread.compareTo(req.maxPr()) > 0 ||
+                        fundingArbSpread.compareTo(req.maxFr()) > 0) continue;
 
                 ArbitrageCandidate direction1 = evaluateDirection(
                         priceSpread.ex1(), priceSpread.ex2(), priceSpread, fundingSpread);
