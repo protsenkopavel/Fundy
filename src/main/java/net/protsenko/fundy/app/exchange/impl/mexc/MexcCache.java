@@ -85,7 +85,7 @@ public class MexcCache implements ExchangeMappingSupport {
         require(resp != null && !resp.isEmpty(),
                 () -> "MEXC spot tickers error: null or empty response");
 
-        return resp.stream()
+        return indexByCanonical(resp.stream()
                 .map(t -> {
                     String symbol = (String) t.get("symbol");
                     String lastPrice = (String) t.get("lastPrice");
@@ -96,10 +96,6 @@ public class MexcCache implements ExchangeMappingSupport {
                     String volume = (String) t.get("volume");
                     return new MexcTickerItem(symbol, lastPrice, bidPrice, askPrice, highPrice, lowPrice, volume);
                 })
-                .collect(Collectors.toMap(
-                        MexcTickerItem::symbol,
-                        t -> t,
-                        (existing, replacement) -> existing
-                ));
+                .toList(), MexcTickerItem::symbol);
     }
 }

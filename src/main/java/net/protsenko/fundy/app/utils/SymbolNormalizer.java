@@ -90,7 +90,12 @@ public class SymbolNormalizer {
     }
 
     private static String[] splitMexc(String s) {
-        return splitGate(s);
+        String[] p = s.split("_");
+        if (p.length > 1) {
+            return new String[]{p[0], p[1]};
+        } else {
+            return splitByKnownQuote(s);
+        }
     }
 
     private static String[] splitByKnownQuote(String s) {
