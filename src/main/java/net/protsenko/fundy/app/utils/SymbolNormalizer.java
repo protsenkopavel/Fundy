@@ -35,7 +35,8 @@ public class SymbolNormalizer {
     public static String canonicalKey(ExchangeType ex, String nativeSymbol, boolean applyAliases) {
         String[] pq = switch (ex) {
             case BYBIT -> splitBybit(nativeSymbol);
-            case BINGX, HTX -> splitByDash(nativeSymbol);
+            case BINGX -> splitByDash(nativeSymbol);
+            case HTX -> splitHtx(nativeSymbol);
             case OKX -> splitOkx(nativeSymbol);
             case GATEIO -> splitGate(nativeSymbol);
             case KUCOIN -> splitKucoin(nativeSymbol);
@@ -114,6 +115,15 @@ public class SymbolNormalizer {
             }
         }
         return new String[]{s, guessQuote()};
+    }
+
+    private static String[] splitHtx(String s) {
+        String upper = s.toUpperCase();
+        if (upper.contains("-")) {
+            return splitByDash(upper);
+        } else {
+            return splitByKnownQuote(upper);
+        }
     }
 
     private static String guessQuote() {

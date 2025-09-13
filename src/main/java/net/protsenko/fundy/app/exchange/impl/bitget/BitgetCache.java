@@ -91,11 +91,6 @@ public class BitgetCache implements ExchangeMappingSupport {
         });
         require(resp != null && "00000".equals(resp.code()) && resp.data() != null,
                 () -> "Bitget spot tickers error: " + (resp != null ? resp.msg() : "null response"));
-        return resp.data().stream()
-                .collect(Collectors.toMap(
-                        BitgetSpotTickerItem::symbol,
-                        item -> item,
-                        (existing, replacement) -> existing
-                ));
+        return indexByCanonical(resp.data(), BitgetSpotTickerItem::symbol);
     }
 }

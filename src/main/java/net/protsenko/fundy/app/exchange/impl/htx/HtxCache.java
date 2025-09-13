@@ -3,6 +3,7 @@ package net.protsenko.fundy.app.exchange.impl.htx;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import net.protsenko.fundy.app.exchange.ExchangeType;
+import net.protsenko.fundy.app.exchange.impl.bitget.BitgetSpotTickerItem;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.HtxConfig;
 import net.protsenko.fundy.app.utils.HttpExecutor;
@@ -81,11 +82,6 @@ public class HtxCache implements ExchangeMappingSupport {
                 });
         require(resp != null && "ok".equalsIgnoreCase(resp.status()) && resp.data() != null,
                 () -> "HTX spot tickers error: " + (resp != null ? resp.status() : "null"));
-        return resp.data().stream()
-                .collect(Collectors.toMap(
-                        HtxSpotTickerItem::symbol,
-                        item -> item,
-                        (existing, replacement) -> existing
-                ));
+        return indexByCanonical(resp.data(), HtxSpotTickerItem::symbol);
     }
 }
