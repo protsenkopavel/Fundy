@@ -89,16 +89,13 @@ public class CoinexCache implements ExchangeMappingSupport {
     @Cacheable(cacheNames = "ex-spot-tickers", key = "'COINEX'", sync = true)
     public Map<String, CoinexSpotTickerItem> spotTickers() {
         String url = cfg.getBaseUrl() + "/v1/market/ticker/all";
-        CoinexResponse<List<CoinexSpotTickerItem>> resp =
+        CoinexResponse<CoinexTickerAllData> resp =
                 http.get(url, cfg.getTimeout(), new TypeReference<>() {
                 });
-        require(resp != null && resp.code() == 0 && resp.data() != null,
+        require(resp != null && resp.code() == 0 && resp.data() != null && resp.data().ticker() != null,
                 () -> "CoinEx spot tickers error: " + (resp != null ? resp.message() : "null"));
-        return resp.data().stream()
-                .collect(Collectors.toMap(
-                        CoinexSpotTickerItem::market,
-                        item -> item,
-                        (existing, replacement) -> existing
-                ));
+        return indexByCanonical(resp.data().ticker().entrySet().stream()
+                .map(e -> new CoinexSpotTickerItem(e.getKey(), e.getValue().last(), e.getValue().buy(), e.getValue().sell(), e.getValue().high(), e.getValue().low(), e.getValue().vol(), e.getValue().buyAmount(), "0"))
+                .toList(), CoinexSpotTickerItem::market);
     }
 }
