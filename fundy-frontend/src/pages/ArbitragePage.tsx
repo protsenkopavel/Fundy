@@ -8,7 +8,7 @@ import {getExchanges, postArbitrage} from '@/api';
 import type {ArbitrageRequest, ArbitrageRow, Exchange} from '@/api/types';
 
 import ScanToolbar from '@/components/ScanToolbar';
-import {fmtPct, fmtPrice, fmtTs, labelFromCanonical, pctColor, toCanonical} from '@/lib/symbols';
+import {fmtPct, fmtPrice, fmtTs, fmtVolume, labelFromCanonical, pctColor, toCanonical} from '@/lib/symbols';
 import {BASE_TIMEZONES, EUROPE_TIMEZONES} from '@/lib/timezones';
 
 function CenterOverlay() {
@@ -130,6 +130,7 @@ export default function ArbitragePage() {
             exList.forEach(ex => {
                 row[ex] = {
                     price: it?.prices?.[ex],
+                    volume: it?.volumes?.[ex],
                     fundingRate: it?.fundingRates?.[ex],
                     nextFundingTs: it?.nextFundingTs?.[ex],
                     link: it?.links?.[ex],
@@ -147,14 +148,19 @@ export default function ArbitragePage() {
                 field: 'token',
                 headerName: 'Инструмент',
                 width: 160,
-                align: 'left',
-                headerAlign: 'left',
+                align: 'center',
+                headerAlign: 'center',
                 renderCell: (p) => {
                     const canon = toCanonical(String(p.value ?? ''));
                     return (
                         <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
                             fontFamily: '"Roboto Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-                            fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3
+                            fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3,
+                            textAlign: 'center'
                         }}>
                             {labelFromCanonical(canon)}
                         </Box>
@@ -169,7 +175,18 @@ export default function ArbitragePage() {
                 headerAlign: 'center',
                 renderCell: (p) => {
                     const n = Number(p.row?.priceSpread);
-                    return <Box sx={{fontWeight: 600}}>{Number.isNaN(n) ? '—' : fmtPct(n)}</Box>;
+                    return (
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
+                            fontWeight: 600,
+                            textAlign: 'center'
+                        }}>
+                            {Number.isNaN(n) ? '—' : fmtPct(n)}
+                        </Box>
+                    );
                 }
             },
             {
@@ -181,7 +198,14 @@ export default function ArbitragePage() {
                 renderCell: (p) => {
                     const n = Number(p.row?.fundingSpread);
                     return (
-                        <Box sx={{fontWeight: 700}}>
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
+                            fontWeight: 700,
+                            textAlign: 'center'
+                        }}>
                             {Number.isNaN(n) ? '—' : fmtPct(n)}
                         </Box>
                     );
@@ -196,14 +220,25 @@ export default function ArbitragePage() {
                 sortable: false,
                 renderCell: (p) => {
                     const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
-                    if (!d?.longEx) return <Box sx={{color: 'text.secondary'}}>—</Box>;
+                    if (!d?.longEx) return (
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
+                            color: 'text.secondary'
+                        }}>—</Box>
+                    );
 
                     return (
                         <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
                             px: 0.5, fontSize: 12, fontWeight: 900,
                             color: '#22c55e', border: 'none !important', background: 'transparent',
                             textTransform: 'uppercase', whiteSpace: 'nowrap',
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                             {d.longEx}
                         </Box>
@@ -219,14 +254,25 @@ export default function ArbitragePage() {
                 sortable: false,
                 renderCell: (p) => {
                     const d = p.row?.decision as { longEx?: string; shortEx?: string } | undefined;
-                    if (!d?.shortEx) return <Box sx={{color: 'text.secondary'}}>—</Box>;
+                    if (!d?.shortEx) return (
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
+                            color: 'text.secondary'
+                        }}>—</Box>
+                    );
 
                     return (
                         <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            height: '100%',
                             px: 0.5, fontSize: 12, fontWeight: 900,
                             color: '#ef4444', border: 'none !important', background: 'transparent',
                             textTransform: 'uppercase', whiteSpace: 'nowrap',
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         }}>
                             {d.shortEx}
                         </Box>
@@ -246,6 +292,7 @@ export default function ArbitragePage() {
             renderCell: (params) => {
                 const cell = params.row?.[ex] as {
                     price?: number;
+                    volume?: number;
                     fundingRate?: number;
                     nextFundingTs?: number;
                     link?: string
@@ -262,6 +309,9 @@ export default function ArbitragePage() {
                             {fmtPct(cell.fundingRate)}
                         </Box>
                         <Box sx={{fontSize: 11, color: 'text.secondary'}}>{fmtTs(cell.nextFundingTs, timeZone)}</Box>
+                        <Box sx={{fontSize: 12, color: 'text.secondary'}}>
+                            Объем 24ч: {fmtVolume(cell.volume)} USDT
+                        </Box>
                     </Box>
                 );
 
@@ -341,7 +391,7 @@ export default function ArbitragePage() {
             <Box sx={{flex: 1, minHeight: 0}}>
                 <DataGrid
                     rows={rows}
-                    columns={columns.length ? columns : [{field: 'token', headerName: 'Инструмент', width: 140}]}
+                    columns={columns.length ? columns : [{field: 'token', headerName: 'Инструмент', width: 140, align: 'center', headerAlign: 'center'}]}
                     getRowId={(r) => r.id}
                     loading={arbQuery.isFetching}
                     slots={{toolbar: GridToolbar, loadingOverlay: CenterOverlay}}
@@ -352,7 +402,13 @@ export default function ArbitragePage() {
                     rowBufferPx={300}
                     sx={{
                         height: '100%', width: '100%',
-                        '& .MuiDataGrid-cell': {fontSize: 13, py: 0.8},
+                        '& .MuiDataGrid-cell': {
+                            fontSize: 13,
+                            py: 0.8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        },
                         '& .MuiDataGrid-columnHeaders': {
                             textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, fontSize: 12.5,
                             backgroundColor: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)',

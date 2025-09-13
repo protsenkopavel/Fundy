@@ -9,6 +9,7 @@ import java.util.Map;
 public record FuturesArbitrageData(
         CanonicalInstrument instrument,
         Map<ExchangeType, BigDecimal> prices,
+        Map<ExchangeType, BigDecimal> volumes,
         Map<ExchangeType, BigDecimal> fundingRates,
         Map<ExchangeType, Long> nextFundingTs,
         BigDecimal priceSpread,

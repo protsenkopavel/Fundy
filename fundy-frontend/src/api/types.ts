@@ -12,6 +12,7 @@ export type FundingRow = {
 export type ArbitrageRow = {
     token: string;
     prices: Record<string, number>;
+    volumes: Record<string, number>;
     fundingRates: Record<string, number>;
     nextFundingTs: Record<string, number>;
     priceSpread?: number;
@@ -63,6 +64,8 @@ export type SpotFuturesArbitrageRow = {
     shortExchange: string;
     buyPrice: number;
     shortPrice: number;
+    buyVolume24h: number;
+    shortVolume24h: number;
     fundingRate: number;
     nextFundingTs?: number;
     priceSpread: number;

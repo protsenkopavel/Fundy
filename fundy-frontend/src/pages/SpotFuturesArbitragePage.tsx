@@ -4,33 +4,12 @@ import {Box, CircularProgress} from '@mui/material';
 import {DataGrid, type GridColDef, GridToolbar} from '@mui/x-data-grid';
 import {useSearchParams} from 'react-router-dom';
 
-import {getExchanges, postSpotArbitrage} from '@/api';
-import type {SpotArbitrageRequest, SpotArbitrageRow, Exchange} from '@/api/types';
+import {getExchanges, postSpotFuturesArbitrage} from '@/api';
+import type {SpotFuturesArbitrageRequest, SpotFuturesArbitrageRow, Exchange} from '@/api/types';
 
 import ScanToolbar from '@/components/ScanToolbar';
-import {fmtPct, fmtPrice, fmtVolume} from '@/lib/symbols';
-
-const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'ENABLED': return '#22c55e';
-        case 'DISABLED': return '#ef4444';
-        case 'UNKNOWN': return '#f59e0b';
-        default: return '#6b7280';
-    }
-};
-
-const getStatusLabel = (status: string) => {
-    switch (status) {
-        case 'ENABLED': return { text: '✓', color: '#22c55e' };
-        case 'DISABLED': return { text: '✗', color: '#ef4444' };
-        case 'UNKNOWN': return { text: '?', color: '#f59e0b' };
-        default: return { text: '?', color: '#6b7280' };
-    }
-};
-
-const formatVolumeInUSDT = (volume: number, price: number) => {
-    return fmtPrice(volume * price);
-};
+import {fmtPct, fmtPrice, fmtTs, pctColor, fmtVolume} from '@/lib/symbols';
+import {BASE_TIMEZONES, EUROPE_TIMEZONES} from '@/lib/timezones';
 
 function CenterOverlay() {
     return (
@@ -44,12 +23,20 @@ function CenterOverlay() {
     );
 }
 
-export default function SpotArbitragePage() {
+export default function SpotFuturesArbitragePage() {
     const exchangesQuery = useQuery<Exchange[]>({queryKey: ['exchanges'], queryFn: getExchanges});
+
+    const tzDefault = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const tzOptions = useMemo(() => {
+        const list = [tzDefault, 'UTC', ...EUROPE_TIMEZONES, ...BASE_TIMEZONES];
+        const seen = new Set<string>();
+        return list.filter(tz => !!tz && !seen.has(tz) && seen.add(tz));
+    }, [tzDefault]);
 
     const [selExchanges, setSelExchanges] = useState<Exchange[]>([]);
     const [minPriceSpread, setMinPriceSpread] = useState<string>('');
     const [maxPriceSpread, setMaxPriceSpread] = useState<string>('');
+    const [timeZone, setTimeZone] = useState<string>(tzDefault);
 
     const [searchParams, setSearchParams] = useSearchParams();
     useEffect(() => {
@@ -57,9 +44,11 @@ export default function SpotArbitragePage() {
         const exParam = searchParams.get('ex');
         const mpsParam = searchParams.get('mps');
         const maxMpsParam = searchParams.get('maxMps');
+        const tzParam = searchParams.get('tz');
 
         if (mpsParam) setMinPriceSpread(mpsParam);
         if (maxMpsParam) setMaxPriceSpread(maxMpsParam);
+        if (tzParam) setTimeZone(tzParam);
 
         if (exParam) {
             const codes = exParam.split(',').map(s => s.trim()).filter(Boolean);
@@ -76,6 +65,7 @@ export default function SpotArbitragePage() {
             ex: exCodes || undefined,
             mps: minPriceSpread || undefined,
             maxMps: maxPriceSpread || undefined,
+            tz: timeZone || undefined,
         };
         let changed = false;
         for (const [k, v] of Object.entries(entries)) {
@@ -87,18 +77,18 @@ export default function SpotArbitragePage() {
         }
         if (changed) setSearchParams(next, {replace: true});
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selExchanges, minPriceSpread, maxPriceSpread]);
+    }, [selExchanges, minPriceSpread, maxPriceSpread, timeZone]);
 
-    const [rows, setRows] = useState<SpotArbitrageRow[]>([]);
+    const [rows, setRows] = useState<SpotFuturesArbitrageRow[]>([]);
 
-    const lastReqRef = useRef<SpotArbitrageRequest | null>(null);
+    const lastReqRef = useRef<SpotFuturesArbitrageRequest | null>(null);
 
-    const arbQuery = useQuery<SpotArbitrageRow[]>({
-        queryKey: ['spot-arbitrage'],
+    const arbQuery = useQuery<SpotFuturesArbitrageRow[]>({
+        queryKey: ['spot-futures-arbitrage'],
         enabled: false,
         queryFn: async () => {
             if (!lastReqRef.current) return [];
-            return postSpotArbitrage(lastReqRef.current);
+            return postSpotFuturesArbitrage(lastReqRef.current);
         },
         refetchOnMount: false,
         staleTime: 5 * 60_000,
@@ -133,14 +123,13 @@ export default function SpotArbitragePage() {
             },
             {
                 field: 'buyExchange',
-                headerName: 'Биржа покупки',
-                width: 200,
+                headerName: 'Спот покупка',
+                width: 180,
                 align: 'center',
                 headerAlign: 'center',
                 renderCell: (p) => {
                     const ex = String(p.value ?? '');
                     const link = p.row?.links?.[ex];
-                    const status = p.row?.withdrawalStatus;
                     const price = Number(p.row?.buyPrice);
                     const volume = Number(p.row?.buyVolume24h);
 
@@ -156,13 +145,6 @@ export default function SpotArbitragePage() {
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.2
                             }}>
                                 {ex}
-                                <Box sx={{
-                                    fontSize: 10,
-                                    color: getStatusLabel(status).color,
-                                    fontWeight: 'bold'
-                                }}>
-                                    {getStatusLabel(status).text} вывод
-                                </Box>
                             </Box>
                             <Box sx={{fontWeight: 700}}>{fmtPrice(price)}</Box>
                             <Box sx={{fontSize: 12, color: 'text.secondary'}}>
@@ -191,24 +173,25 @@ export default function SpotArbitragePage() {
                                             height: '100%',
                                             width: '100%'
                                         }}
-                                        title={`Открыть на ${ex} (${status?.toLowerCase()} вывод)`}>{inner}</Box>
+                                        title={`Открыть спот на ${ex}`}>{inner}</Box>
                                 : inner}
                         </Box>
                     );
                 }
             },
             {
-                field: 'sellExchange',
-                headerName: 'Биржа продажи',
-                width: 200,
+                field: 'shortExchange',
+                headerName: 'Фьючерс шорт',
+                width: 180,
                 align: 'center',
                 headerAlign: 'center',
                 renderCell: (p) => {
                     const ex = String(p.value ?? '');
                     const link = p.row?.links?.[ex];
-                    const status = p.row?.depositStatus;
-                    const price = Number(p.row?.sellPrice);
-                    const volume = Number(p.row?.sellVolume24h);
+                    const price = Number(p.row?.shortPrice);
+                    const volume = Number(p.row?.shortVolume24h);
+                    const fundingRate = Number(p.row?.fundingRate);
+                    const nextFundingTs = p.row?.nextFundingTs;
 
                     const inner = (
                         <Box sx={{
@@ -222,15 +205,12 @@ export default function SpotArbitragePage() {
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.2
                             }}>
                                 {ex}
-                                <Box sx={{
-                                    fontSize: 10,
-                                    color: getStatusLabel(status).color,
-                                    fontWeight: 'bold'
-                                }}>
-                                    {getStatusLabel(status).text} ввод
-                                </Box>
                             </Box>
                             <Box sx={{fontWeight: 700}}>{fmtPrice(price)}</Box>
+                            <Box sx={{fontSize: 12, color: pctColor(fundingRate), fontWeight: 600}}>
+                                {fmtPct(fundingRate)}
+                            </Box>
+                            <Box sx={{fontSize: 11, color: 'text.secondary'}}>{fmtTs(nextFundingTs, timeZone)}</Box>
                             <Box sx={{fontSize: 12, color: 'text.secondary'}}>
                                 Объем 24ч: {fmtVolume(volume)} USDT
                             </Box>
@@ -247,17 +227,17 @@ export default function SpotArbitragePage() {
                         }}>
                             {link
                                 ? <Box component="a" href={link} target="_blank" rel="noopener noreferrer"
-                                        sx={{
-                                            textDecoration: 'none',
-                                            color: 'inherit',
-                                            '&:hover': {textDecoration: 'underline'},
-                                            display: 'flex',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            height: '100%',
-                                            width: '100%'
-                                        }}
-                                        title={`Открыть на ${ex} (${status?.toLowerCase()} ввод)`}>{inner}</Box>
+                                       sx={{
+                                           textDecoration: 'none',
+                                           color: 'inherit',
+                                           '&:hover': {textDecoration: 'underline'},
+                                           display: 'flex',
+                                           justifyContent: 'center',
+                                           alignItems: 'center',
+                                           height: '100%',
+                                           width: '100%'
+                                       }}
+                                       title={`Открыть фьючерс на ${ex}`}>{inner}</Box>
                                 : inner}
                         </Box>
                     );
@@ -286,7 +266,7 @@ export default function SpotArbitragePage() {
                 }
             }
         ];
-    }, []);
+    }, [timeZone]);
 
     const handleScan = () => {
         const minPriceSpreadPct = minPriceSpread ? Number(minPriceSpread) / 100 : undefined;
@@ -304,6 +284,7 @@ export default function SpotArbitragePage() {
         setSelExchanges([]);
         setMinPriceSpread('');
         setMaxPriceSpread('');
+        setTimeZone(tzDefault);
     };
 
     if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;
@@ -312,19 +293,22 @@ export default function SpotArbitragePage() {
         <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, height: 'calc(100dvh - 120px)'}}>
             <ScanToolbar
                 exchanges={exchangesQuery.data ?? []}
+                timeZone={tzDefault}
+                timeZones={tzOptions}
                 loading={arbQuery.isFetching}
                 onScan={handleScan}
                 onReset={handleReset}
                 selExchanges={selExchanges} setSelExchanges={setSelExchanges}
                 minPriceSpread={minPriceSpread} setMinPriceSpread={setMinPriceSpread}
                 maxPriceSpread={maxPriceSpread} setMaxPriceSpread={setMaxPriceSpread}
+                timeZoneValue={timeZone} setTimeZoneValue={setTimeZone}
             />
 
             <Box sx={{flex: 1, minHeight: 0}}>
                 <DataGrid
                     rows={rows}
                     columns={columns.length ? columns : [{field: 'coin', headerName: 'Монета', width: 140, align: 'center', headerAlign: 'center'}]}
-                    getRowId={(r) => `${r.instrument?.base ?? ''}-${r.buyExchange}-${r.sellExchange}`}
+                    getRowId={(r) => `${r.instrument?.base ?? ''}-${r.buyExchange}-${r.shortExchange}`}
                     loading={arbQuery.isFetching}
                     slots={{toolbar: GridToolbar, loadingOverlay: CenterOverlay}}
                     slotProps={{toolbar: {showQuickFilter: true, quickFilterProps: {debounceMs: 300}}}}

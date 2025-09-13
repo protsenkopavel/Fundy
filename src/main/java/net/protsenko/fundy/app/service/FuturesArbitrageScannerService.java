@@ -81,6 +81,12 @@ public class FuturesArbitrageScannerService {
                         e -> e.getValue().lastPrice()
                 ));
 
+        Map<ExchangeType, BigDecimal> volumeMap = prices.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().volume24h()
+                ));
+
         Map<ExchangeType, BigDecimal> fundingMap = fundingRates != null ?
                 fundingRates.entrySet().stream()
                         .collect(Collectors.toMap(
@@ -128,6 +134,7 @@ public class FuturesArbitrageScannerService {
         return new FuturesArbitrageData(
                 instrument,
                 priceMap,
+                volumeMap,
                 fundingMap,
                 nextFundingTsMap,
                 bestOpportunity.priceSpread(),

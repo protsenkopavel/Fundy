@@ -113,6 +113,8 @@ public class SpotFuturesArbitrageService {
                 bestFutures.exchange,
                 bestSpot.price,
                 bestFutures.price,
+                bestSpot.volume24h,
+                bestFutures.volume24h,
                 fundingRate,
                 nextFundingTs,
                 spread,

@@ -12,6 +12,8 @@ public record SpotFuturesArbitrageData(
         ExchangeType shortExchange,
         BigDecimal buyPrice,
         BigDecimal shortPrice,
+        BigDecimal buyVolume24h,
+        BigDecimal shortVolume24h,
         BigDecimal fundingRate,
         Long nextFundingTs,
         BigDecimal priceSpread,
