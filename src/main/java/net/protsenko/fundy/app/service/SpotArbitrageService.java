@@ -92,8 +92,7 @@ public class SpotArbitrageService {
         }
 
         return new SpotArbitrageData(
-                coin,
-                canonicalKey.replace("/", ""),
+                instrument,
                 buyOpportunity.exchange,
                 buyOpportunity.withdrawStatus,
                 sellOpportunity.exchange,

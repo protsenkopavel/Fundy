@@ -30,6 +30,8 @@ export type ArbitrageRequest = {
 export type DepositWithdrawStatus = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
 
 export type SpotArbitrageRow = {
+    instrument: { base: string; quote: string; canonicalKey: string };
+    token: string;
     coin: string;
     pair: string;
     buyExchange: string;
@@ -45,6 +47,27 @@ export type SpotArbitrageRow = {
 };
 
 export type SpotArbitrageRequest = {
+    exchanges?: string[];
+    minSpread?: number;
+    maxSpread?: number;
+};
+
+export type SpotFuturesArbitrageRow = {
+    instrument: { base: string; quote: string; canonicalKey: string };
+    token: string;
+    coin: string;
+    pair: string;
+    buyExchange: string;
+    shortExchange: string;
+    buyPrice: number;
+    shortPrice: number;
+    fundingRate: number;
+    nextFundingTs?: number;
+    priceSpread: number;
+    links: Record<string, string>;
+};
+
+export type SpotFuturesArbitrageRequest = {
     exchanges?: string[];
     minSpread?: number;
     maxSpread?: number;

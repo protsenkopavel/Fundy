@@ -1,6 +1,5 @@
 package net.protsenko.fundy.app.dto.rs;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import net.protsenko.fundy.app.domain.CanonicalInstrument;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 
@@ -17,11 +16,6 @@ public record FuturesArbitrageData(
         Decision decision,
         Map<ExchangeType, String> links
 ) {
-    @JsonProperty("token")
-    public String token() {
-        return instrument.canonicalKey();
-    }
-
     public record Decision(ExchangeType longEx, ExchangeType shortEx) {
         public Decision {
         }

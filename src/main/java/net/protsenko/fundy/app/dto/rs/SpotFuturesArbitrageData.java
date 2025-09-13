@@ -6,17 +6,15 @@ import net.protsenko.fundy.app.exchange.ExchangeType;
 import java.math.BigDecimal;
 import java.util.Map;
 
-public record SpotArbitrageData(
+public record SpotFuturesArbitrageData(
         CanonicalInstrument instrument,
         ExchangeType buyExchange,
-        DepositWithdrawStatus withdrawalStatus,
-        ExchangeType sellExchange,
-        DepositWithdrawStatus depositStatus,
-        BigDecimal priceSpread,
+        ExchangeType shortExchange,
         BigDecimal buyPrice,
-        BigDecimal sellPrice,
-        BigDecimal buyVolume24h,
-        BigDecimal sellVolume24h,
+        BigDecimal shortPrice,
+        BigDecimal fundingRate,
+        Long nextFundingTs,
+        BigDecimal priceSpread,
         Map<ExchangeType, String> links
 ) {
 }
