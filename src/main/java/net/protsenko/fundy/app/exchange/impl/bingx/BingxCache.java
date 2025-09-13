@@ -77,17 +77,13 @@ public class BingxCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-spot-tickers", key = "'BINGX'", sync = true)
     public Map<String, BingxSpotTickerItem> spotTickers() {
-        String url = cfg.getBaseUrl() + "/openApi/spot/v1/ticker/24hr";
+        long timestamp = System.currentTimeMillis();
+        String url = cfg.getBaseUrl() + "/openApi/spot/v1/ticker/24hr?timestamp=" + timestamp;
         BingxResponse<List<BingxSpotTickerItem>> resp =
                 http.get(url, cfg.getTimeout(), new TypeReference<>() {
                 });
         require(resp != null && resp.code() == 0 && resp.data() != null,
                 () -> "BingX spot tickers error: " + (resp != null ? resp.msg() : "null"));
-        return resp.data().stream()
-                .collect(Collectors.toMap(
-                        BingxSpotTickerItem::symbol,
-                        item -> item,
-                        (existing, replacement) -> existing
-                ));
+        return indexByCanonical(resp.data(), BingxSpotTickerItem::symbol);
     }
 }
