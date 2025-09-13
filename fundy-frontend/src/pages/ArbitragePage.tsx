@@ -38,6 +38,7 @@ export default function ArbitragePage() {
     const [maxRate, setMaxRate] = useState<string>('');
     const [minPriceSpread, setMinPriceSpread] = useState<string>('');
     const [maxPriceSpread, setMaxPriceSpread] = useState<string>('');
+    const [minVolume, setMinVolume] = useState<string>('');
     const [timeZone, setTimeZone] = useState<string>(tzDefault);
     const [sameAccrualTime, setSameAccrualTime] = useState<boolean>(false);
 
@@ -50,6 +51,7 @@ export default function ArbitragePage() {
         const maxrParam = searchParams.get('max');
         const mpsParam = searchParams.get('mps');
         const maxpsParam = searchParams.get('maxps');
+        const mvParam = searchParams.get('mv');
         const satParam = searchParams.get('sat');
 
         if (tzParam) setTimeZone(tzParam);
@@ -57,6 +59,7 @@ export default function ArbitragePage() {
         if (maxrParam) setMaxRate(maxrParam);
         if (mpsParam) setMinPriceSpread(mpsParam);
         if (maxpsParam) setMaxPriceSpread(maxpsParam);
+        if (mvParam) setMinVolume(mvParam);
         if (satParam) setSameAccrualTime(satParam === 'true');
 
         if (exParam) {
@@ -77,6 +80,7 @@ export default function ArbitragePage() {
             max: maxRate || undefined,
             mps: minPriceSpread || undefined,
             maxps: maxPriceSpread || undefined,
+            mv: minVolume || undefined,
             sat: sameAccrualTime ? 'true' : undefined,
         };
         let changed = false;
@@ -89,7 +93,7 @@ export default function ArbitragePage() {
         }
         if (changed) setSearchParams(next, {replace: true});
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selExchanges, timeZone, minRate, maxRate, minPriceSpread, maxPriceSpread, sameAccrualTime]);
+    }, [selExchanges, timeZone, minRate, maxRate, minPriceSpread, maxPriceSpread, minVolume, sameAccrualTime]);
 
     const [rows, setRows] = useState<any[]>([]);
     const [exchangeList, setExchangeList] = useState<string[]>([]);
@@ -345,6 +349,7 @@ export default function ArbitragePage() {
         const maxFunding = maxRate ? Number(maxRate) / 100 : undefined;
         const minPriceSpreadPct = minPriceSpread ? Number(minPriceSpread) / 100 : undefined;
         const maxPriceSpreadPct = maxPriceSpread ? Number(maxPriceSpread) / 100 : undefined;
+        const minVolumeValue = minVolume ? Number(minVolume) : undefined;
 
         lastReqRef.current = {
             exchanges: selExchanges.length ? selExchanges.map(e => e.code ?? e.name) : undefined,
@@ -352,6 +357,7 @@ export default function ArbitragePage() {
             maxFundingRate: Number.isFinite(maxFunding as number) ? maxFunding : undefined,
             minPerpetualPrice: Number.isFinite(minPriceSpreadPct as number) ? minPriceSpreadPct : undefined,
             maxPerpetualPrice: Number.isFinite(maxPriceSpreadPct as number) ? maxPriceSpreadPct : undefined,
+            minVolume: Number.isFinite(minVolumeValue as number) ? minVolumeValue : undefined,
             timeZone,
             sameAccrualTime: sameAccrualTime || undefined
         };
@@ -364,6 +370,7 @@ export default function ArbitragePage() {
         setMaxRate('');
         setMinPriceSpread('');
         setMaxPriceSpread('');
+        setMinVolume('');
         setTimeZone(tzDefault);
         setSameAccrualTime(false);
     };
@@ -384,6 +391,7 @@ export default function ArbitragePage() {
                 maxRate={maxRate} setMaxRate={setMaxRate}
                 minPriceSpread={minPriceSpread} setMinPriceSpread={setMinPriceSpread}
                 maxPriceSpread={maxPriceSpread} setMaxPriceSpread={setMaxPriceSpread}
+                minVolume={minVolume} setMinVolume={setMinVolume}
                 timeZoneValue={timeZone} setTimeZoneValue={setTimeZone}
                 sameAccrualTime={sameAccrualTime} setSameAccrualTime={setSameAccrualTime}
             />

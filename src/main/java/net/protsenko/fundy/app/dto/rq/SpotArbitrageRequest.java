@@ -12,7 +12,9 @@ public record SpotArbitrageRequest(
         @DecimalMin(value = "0.0", inclusive = false)
         BigDecimal minSpread,
         @DecimalMin(value = "0.0", inclusive = false)
-        BigDecimal maxSpread
+        BigDecimal maxSpread,
+        @DecimalMin(value = "0.0", inclusive = false)
+        BigDecimal minVolume
 ) {
     public Set<ExchangeType> effectiveExchanges() {
         return (exchanges == null || exchanges.isEmpty())
@@ -26,5 +28,9 @@ public record SpotArbitrageRequest(
 
     public BigDecimal effectiveMaxSpread() {
         return maxSpread != null ? maxSpread : BigDecimal.valueOf(10.0);
+    }
+
+    public BigDecimal effectiveMinVolume() {
+        return minVolume != null ? minVolume : BigDecimal.valueOf(10000.0);
     }
 }

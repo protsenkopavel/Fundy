@@ -30,6 +30,7 @@ public class SpotFuturesArbitrageService {
         Set<ExchangeType> exchanges = request.effectiveExchanges();
         BigDecimal minSpread = request.effectiveMinSpread();
         BigDecimal maxSpread = request.effectiveMaxSpread();
+        BigDecimal minVolume = request.effectiveMinVolume();
 
         Map<String, Map<ExchangeType, TickerData>> spotPriceData = spotService.collectSpotPriceData(exchanges);
         Map<String, Map<ExchangeType, TickerData>> futuresPriceData = futuresService.collectFuturesPriceData(exchanges);
@@ -53,11 +54,13 @@ public class SpotFuturesArbitrageService {
                     Map<ExchangeType, String> spotNativeSymbols = spotUniverse.get(canonicalKey);
                     Map<ExchangeType, String> futuresNativeSymbols = futuresUniverse.get(canonicalKey);
                     return analyzeSpotFuturesArbitrageOpportunity(canonicalKey, spotPrices, futuresPrices,
-                                                                 fundingRates, spotNativeSymbols, futuresNativeSymbols, exchanges);
+                            fundingRates, spotNativeSymbols, futuresNativeSymbols, exchanges);
                 })
                 .filter(Objects::nonNull)
                 .filter(opportunity -> opportunity.priceSpread().compareTo(minSpread) >= 0)
                 .filter(opportunity -> opportunity.priceSpread().compareTo(maxSpread) <= 0)
+                .filter(opportunity -> opportunity.buyVolume24h().compareTo(minVolume) >= 0)
+                .filter(opportunity -> opportunity.shortVolume24h().compareTo(minVolume) >= 0)
                 .sorted((a, b) -> b.priceSpread().compareTo(a.priceSpread()))
                 .collect(Collectors.toList());
     }

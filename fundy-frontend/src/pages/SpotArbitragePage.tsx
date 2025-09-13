@@ -50,6 +50,7 @@ export default function SpotArbitragePage() {
     const [selExchanges, setSelExchanges] = useState<Exchange[]>([]);
     const [minPriceSpread, setMinPriceSpread] = useState<string>('');
     const [maxPriceSpread, setMaxPriceSpread] = useState<string>('');
+    const [minVolume, setMinVolume] = useState<string>('');
 
     const [searchParams, setSearchParams] = useSearchParams();
     useEffect(() => {
@@ -57,9 +58,11 @@ export default function SpotArbitragePage() {
         const exParam = searchParams.get('ex');
         const mpsParam = searchParams.get('mps');
         const maxMpsParam = searchParams.get('maxMps');
+        const mvParam = searchParams.get('mv');
 
         if (mpsParam) setMinPriceSpread(mpsParam);
         if (maxMpsParam) setMaxPriceSpread(maxMpsParam);
+        if (mvParam) setMinVolume(mvParam);
 
         if (exParam) {
             const codes = exParam.split(',').map(s => s.trim()).filter(Boolean);
@@ -76,6 +79,7 @@ export default function SpotArbitragePage() {
             ex: exCodes || undefined,
             mps: minPriceSpread || undefined,
             maxMps: maxPriceSpread || undefined,
+            mv: minVolume || undefined,
         };
         let changed = false;
         for (const [k, v] of Object.entries(entries)) {
@@ -87,7 +91,7 @@ export default function SpotArbitragePage() {
         }
         if (changed) setSearchParams(next, {replace: true});
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selExchanges, minPriceSpread, maxPriceSpread]);
+    }, [selExchanges, minPriceSpread, maxPriceSpread, minVolume]);
 
     const [rows, setRows] = useState<SpotArbitrageRow[]>([]);
 
@@ -291,11 +295,13 @@ export default function SpotArbitragePage() {
     const handleScan = () => {
         const minPriceSpreadPct = minPriceSpread ? Number(minPriceSpread) / 100 : undefined;
         const maxPriceSpreadPct = maxPriceSpread ? Number(maxPriceSpread) / 100 : undefined;
+        const minVolumeValue = minVolume ? Number(minVolume) : undefined;
 
         lastReqRef.current = {
             exchanges: selExchanges.length ? selExchanges.map(e => e.code ?? e.name) : undefined,
             minSpread: Number.isFinite(minPriceSpreadPct as number) ? minPriceSpreadPct : undefined,
-            maxSpread: Number.isFinite(maxPriceSpreadPct as number) ? maxPriceSpreadPct : undefined
+            maxSpread: Number.isFinite(maxPriceSpreadPct as number) ? maxPriceSpreadPct : undefined,
+            minVolume: Number.isFinite(minVolumeValue as number) ? minVolumeValue : undefined
         };
         arbQuery.refetch();
     };
@@ -304,6 +310,7 @@ export default function SpotArbitragePage() {
         setSelExchanges([]);
         setMinPriceSpread('');
         setMaxPriceSpread('');
+        setMinVolume('');
     };
 
     if (exchangesQuery.isLoading) return <Box sx={{p: 3}}>Загрузка…</Box>;
@@ -318,6 +325,7 @@ export default function SpotArbitragePage() {
                 selExchanges={selExchanges} setSelExchanges={setSelExchanges}
                 minPriceSpread={minPriceSpread} setMinPriceSpread={setMinPriceSpread}
                 maxPriceSpread={maxPriceSpread} setMaxPriceSpread={setMaxPriceSpread}
+                minVolume={minVolume} setMinVolume={setMinVolume}
             />
 
             <Box sx={{flex: 1, minHeight: 0}}>

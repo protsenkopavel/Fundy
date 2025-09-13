@@ -28,6 +28,7 @@ export type ArbitrageRequest = {
     maxPerpetualPrice?: number;
     timeZone?: string;
     sameAccrualTime?: boolean;
+    minVolume?: number;
 };
 
 export type DepositWithdrawStatus = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
@@ -53,6 +54,7 @@ export type SpotArbitrageRequest = {
     exchanges?: string[];
     minSpread?: number;
     maxSpread?: number;
+    minVolume?: number;
 };
 
 export type SpotFuturesArbitrageRow = {
@@ -76,6 +78,7 @@ export type SpotFuturesArbitrageRequest = {
     exchanges?: string[];
     minSpread?: number;
     maxSpread?: number;
+    minVolume?: number;
 };
 
 export type FeedbackPayload = {

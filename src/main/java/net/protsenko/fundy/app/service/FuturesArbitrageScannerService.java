@@ -31,6 +31,7 @@ public class FuturesArbitrageScannerService {
 
     public List<FuturesArbitrageData> getArbitrageOpportunities(FuturesArbitrageRequest req) {
         Set<ExchangeType> exchanges = req.effectiveExchanges();
+        BigDecimal minVolume = req.effectiveMinVolume();
         FuturesArbitrageDataAggregator.MarketData marketData = dataAggregator.collectMarketData(exchanges);
 
         return marketData.priceData().entrySet().parallelStream()
@@ -46,6 +47,14 @@ public class FuturesArbitrageScannerService {
                     return analyzeArbitrageOpportunity(canonicalKey, instrumentPrices, instrumentFunding, req);
                 })
                 .filter(Objects::nonNull)
+                .filter(data -> {
+                    FuturesArbitrageData.Decision decision = data.decision();
+                    if (decision == null) return false;
+                    BigDecimal longVolume = data.volumes().get(decision.longEx());
+                    BigDecimal shortVolume = data.volumes().get(decision.shortEx());
+                    return (longVolume != null && longVolume.compareTo(minVolume) >= 0) &&
+                           (shortVolume != null && shortVolume.compareTo(minVolume) >= 0);
+                })
                 .sorted((a, b) -> {
                     BigDecimal spreadA = calculator.calculateCombinedSpread(a);
                     BigDecimal spreadB = calculator.calculateCombinedSpread(b);

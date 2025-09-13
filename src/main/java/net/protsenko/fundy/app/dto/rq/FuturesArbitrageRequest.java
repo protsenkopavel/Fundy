@@ -12,7 +12,8 @@ public record FuturesArbitrageRequest(
         BigDecimal maxFundingRate,
         BigDecimal minPerpetualPrice,
         BigDecimal maxPerpetualPrice,
-        Boolean sameAccrualTime
+        Boolean sameAccrualTime,
+        BigDecimal minVolume
 ) {
     public Set<ExchangeType> effectiveExchanges() {
         return (exchanges == null || exchanges.isEmpty())
@@ -42,6 +43,12 @@ public record FuturesArbitrageRequest(
         return maxPerpetualPrice == null
                 ? new BigDecimal("100")
                 : maxPerpetualPrice;
+    }
+
+    public BigDecimal effectiveMinVolume() {
+        return minVolume == null
+                ? BigDecimal.valueOf(10000.0)
+                : minVolume;
     }
 
 }

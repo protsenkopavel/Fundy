@@ -16,6 +16,7 @@ type Props = {
     maxRate?: string; setMaxRate?: (v: string) => void;
     minPriceSpread?: string; setMinPriceSpread?: (v: string) => void;
     maxPriceSpread?: string; setMaxPriceSpread?: (v: string) => void;
+    minVolume?: string; setMinVolume?: (v: string) => void;
     sameAccrualTime?: boolean; setSameAccrualTime?: (v: boolean) => void;
 
     // тайм-зоны (опционально)
@@ -66,6 +67,14 @@ export default function ScanToolbar(p: Props) {
                     label="Макс. ценовой спред (%)" placeholder="10.0"
                     value={p.maxPriceSpread ?? ''} onChange={e => p.setMaxPriceSpread!(e.target.value)}
                     type="number" inputProps={{step: 0.1, min: 0}} sx={{width: 180}} size="small"
+                />
+            )}
+
+            {p.setMinVolume && (
+                <TextField
+                    label="Мин. объем 24ч ($)" placeholder="10000"
+                    value={p.minVolume ?? ''} onChange={e => p.setMinVolume!(e.target.value)}
+                    type="number" inputProps={{step: 1000, min: 0}} sx={{width: 160}} size="small"
                 />
             )}
 

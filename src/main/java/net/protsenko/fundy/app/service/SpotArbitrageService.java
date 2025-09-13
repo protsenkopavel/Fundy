@@ -32,6 +32,7 @@ public class SpotArbitrageService {
         Set<ExchangeType> exchanges = request.effectiveExchanges();
         BigDecimal minSpread = request.effectiveMinSpread();
         BigDecimal maxSpread = request.effectiveMaxSpread();
+        BigDecimal minVolume = request.effectiveMinVolume();
 
         Map<String, Map<ExchangeType, TickerData>> priceData = spotService.collectSpotPriceData(exchanges);
         Map<String, Map<ExchangeType, String>> universe = universeService.spotUniverse(exchanges);
@@ -50,6 +51,8 @@ public class SpotArbitrageService {
                 .filter(Objects::nonNull)
                 .filter(opportunity -> opportunity.priceSpread().compareTo(minSpread) >= 0)
                 .filter(opportunity -> opportunity.priceSpread().compareTo(maxSpread) <= 0)
+                .filter(opportunity -> opportunity.buyVolume24h().compareTo(minVolume) >= 0)
+                .filter(opportunity -> opportunity.sellVolume24h().compareTo(minVolume) >= 0)
                 .sorted((a, b) -> b.priceSpread().compareTo(a.priceSpread()))
                 .collect(Collectors.toList());
     }
