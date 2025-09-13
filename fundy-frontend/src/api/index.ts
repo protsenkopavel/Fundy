@@ -2,7 +2,7 @@ import { api } from './client';
 import type { Exchange, Token, FundingRow, ArbitrageRow, ArbitrageRequest, SpotArbitrageRow, SpotArbitrageRequest, FeedbackPayload } from './types';
 
 export const getExchanges = async (): Promise<Exchange[]> =>
-    (await api.get('/market/data/exchanges')).data;
+    (await api.get('/market/exchanges')).data;
 
 export const getTokens = async (): Promise<Token[]> => {
     const def = ["BYBIT","MEXC","GATEIO","KUCOIN","BITGET","COINEX","HTX","OKX","BINGX"];
