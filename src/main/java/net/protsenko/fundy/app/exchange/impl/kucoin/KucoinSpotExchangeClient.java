@@ -35,7 +35,7 @@ public class KucoinSpotExchangeClient implements SpotExchangeClient, ExchangeMap
         Map<String, KucoinTickerData> byTickers = cache.spotTickers();
         return mapTickersByCanonical(instruments, byTickers,
                 (inst, t) -> ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(),
-                        "0", "0", "0"));
+                        t.high(), t.low(), t.vol()));
     }
 
     @Override

@@ -69,14 +69,10 @@ public class KucoinCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-spot-tickers", key = "'KUCOIN'", sync = true)
     public Map<String, KucoinTickerData> spotTickers() {
-        Map<String, KucoinTickerData> allTickers = tickers();
-        Map<String, KucoinSpotInstrumentItem> spotInstruments = spotInstruments();
-
-        return allTickers.entrySet().stream()
-                .filter(entry -> spotInstruments.containsKey(entry.getKey()))
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue
-                ));
+        String url = cfg.getSpotBaseUrl() + "/api/v1/market/allTickers";
+        KucoinSpotAllTickersResponse resp = http.get(url, cfg.getTimeout(), KucoinSpotAllTickersResponse.class);
+        require(resp != null && "200000".equals(resp.code()) && resp.data() != null && resp.data().ticker() != null,
+                () -> "KuCoin spot allTickers error");
+        return indexByCanonical(resp.data().ticker(), KucoinTickerData::symbol);
     }
 }

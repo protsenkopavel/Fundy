@@ -72,7 +72,11 @@ public class SymbolNormalizer {
 
     private static String[] splitKucoin(String s) {
         String core = s.endsWith("M") ? s.substring(0, s.length() - 1) : s;
-        return splitByKnownQuote(core);
+        if (core.contains("-")) {
+            return splitByDash(core);
+        } else {
+            return splitByKnownQuote(core);
+        }
     }
 
     private static String[] splitBitget(String s) {
