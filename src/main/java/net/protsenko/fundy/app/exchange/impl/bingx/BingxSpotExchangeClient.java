@@ -11,8 +11,10 @@ import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.SpotExchangeClient;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.BingxConfig;
+import net.protsenko.fundy.app.utils.ExchangeUtils;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -38,8 +40,62 @@ public class BingxSpotExchangeClient implements SpotExchangeClient, ExchangeMapp
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
         Map<String, BingxSpotTickerItem> byCanonical = cache.spotTickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.lastPrice(), t.bidPrice(), t.askPrice(),
-                        t.highPrice(), t.lowPrice(), t.volume()));
+                (inst, t) -> {
+                    String priceChangePercent = t.priceChangePercent();
+
+                    if (priceChangePercent != null) {
+                        priceChangePercent = priceChangePercent.trim();
+                        if (priceChangePercent.endsWith("%")) {
+                            priceChangePercent = priceChangePercent.substring(0, priceChangePercent.length() - 1);
+                        }
+                    }
+
+                    boolean needsCalculation = priceChangePercent == null ||
+                            priceChangePercent.isEmpty() ||
+                            "0".equals(priceChangePercent) ||
+                            "0.0".equals(priceChangePercent) ||
+                            "0.00".equals(priceChangePercent);
+
+                    if (needsCalculation) {
+                        try {
+                            BigDecimal lastPrice = ExchangeUtils.toBigDecimal(t.lastPrice());
+                            BigDecimal openPrice = ExchangeUtils.toBigDecimal(t.openPrice());
+
+                            if (lastPrice != null && openPrice != null &&
+                                openPrice.compareTo(BigDecimal.ZERO) != 0 &&
+                                !lastPrice.equals(openPrice)) {
+
+                                BigDecimal change = lastPrice.subtract(openPrice)
+                                        .divide(openPrice, 6, BigDecimal.ROUND_HALF_UP)
+                                        .multiply(new BigDecimal("100"));
+                                priceChangePercent = change.toString();
+                            } else {
+                                BigDecimal highPrice = ExchangeUtils.toBigDecimal(t.highPrice());
+                                BigDecimal lowPrice = ExchangeUtils.toBigDecimal(t.lowPrice());
+
+                                if (lastPrice != null && highPrice != null && lowPrice != null &&
+                                    highPrice.compareTo(BigDecimal.ZERO) > 0 &&
+                                    lowPrice.compareTo(BigDecimal.ZERO) > 0 &&
+                                    highPrice.compareTo(lowPrice) != 0) {
+
+                                    BigDecimal midPrice = highPrice.add(lowPrice).divide(new BigDecimal("2"));
+                                    if (midPrice.compareTo(BigDecimal.ZERO) != 0) {
+                                        BigDecimal change = lastPrice.subtract(midPrice)
+                                                .divide(midPrice, 6, BigDecimal.ROUND_HALF_UP)
+                                                .multiply(new BigDecimal("100"));
+                                        priceChangePercent = change.toString();
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            priceChangePercent = null;
+                        }
+                    }
+
+                    return ticker(inst, t.lastPrice(), t.bidPrice(), t.askPrice(),
+                            t.highPrice(), t.lowPrice(), t.volume(),
+                            null, priceChangePercent);
+                });
     }
 
     @Override
