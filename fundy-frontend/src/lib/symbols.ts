@@ -50,7 +50,7 @@ export const fmtTs = (ts?: number | string | null, timeZone?: string) => {
     try {
         const fmt = new Intl.DateTimeFormat(undefined, {
             timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-            hour: '2-digit', minute: '2-digit'
+            hour: '2-digit', minute: '2-digit', hour12: false
         });
         return fmt.format(new Date(n));
     } catch { return new Date(n).toLocaleString(); }
