@@ -35,8 +35,20 @@ public class GateioSpotExchangeClient implements SpotExchangeClient, ExchangeMap
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
         Map<String, GateioSpotTickerItem> byCanonical = cache.spotTickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.last(), t.highestBid(), t.lowestAsk(),
-                        t.high24h(), t.low24h(), t.baseVolume()));
+                (inst, t) -> {
+                    String priceChangePercent = t.changePercentage();
+
+                    if (priceChangePercent != null) {
+                        priceChangePercent = priceChangePercent.trim();
+                        if (priceChangePercent.endsWith("%")) {
+                            priceChangePercent = priceChangePercent.substring(0, priceChangePercent.length() - 1);
+                        }
+                    }
+
+                    return ticker(inst, t.last(), t.highestBid(), t.lowestAsk(),
+                            t.high24h(), t.low24h(), t.baseVolume(),
+                            null, priceChangePercent);
+                });
     }
 
     @Override
