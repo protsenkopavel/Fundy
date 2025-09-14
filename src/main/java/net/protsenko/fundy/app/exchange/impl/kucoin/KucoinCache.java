@@ -27,11 +27,49 @@ public class KucoinCache implements ExchangeMappingSupport {
 
     @Cacheable(cacheNames = "ex-tickers", key = "'KUCOIN'", sync = true)
     public Map<String, KucoinTickerData> tickers() {
-        String url = cfg.getBaseUrl() + "/api/v1/allTickers";
-        KucoinAllTickersResponse resp = http.get(url, cfg.getTimeout(), KucoinAllTickersResponse.class);
-        require(resp != null && "200000".equals(resp.code()) && resp.data() != null,
+        String tickersUrl = cfg.getBaseUrl() + "/api/v1/allTickers";
+        KucoinAllTickersResponse tickersResp = http.get(tickersUrl, cfg.getTimeout(), KucoinAllTickersResponse.class);
+        require(tickersResp != null && "200000".equals(tickersResp.code()) && tickersResp.data() != null,
                 () -> "KuCoin allTickers error");
-        return indexByCanonical(resp.data(), KucoinTickerData::symbol);
+
+        String contractsUrl = cfg.getBaseUrl() + "/api/v1/contracts/active";
+        KucoinContractsResponse contractsResp = http.get(contractsUrl, cfg.getTimeout(), KucoinContractsResponse.class);
+        require(contractsResp != null && contractsResp.data() != null, () -> "KuCoin contracts fetch error");
+
+        Map<String, KucoinContractItem> contractsBySymbol = contractsResp.data().stream()
+                .collect(Collectors.toMap(KucoinContractItem::symbol, contract -> contract));
+
+        List<KucoinTickerData> mergedTickers = tickersResp.data().stream()
+                .map(ticker -> {
+                    KucoinContractItem contract = contractsBySymbol.get(ticker.symbol());
+                    if (contract != null) {
+                        String price = ticker.price() != null ? ticker.price() : contract.lastTradePrice();
+                        String high = ticker.high() != null ? ticker.high() : contract.highPrice();
+                        String low = ticker.low() != null ? ticker.low() : contract.lowPrice();
+                        String vol = ticker.vol() != null ? ticker.vol() : contract.volumeOf24h();
+
+                        return new KucoinTickerData(
+                                ticker.sequence(),
+                                ticker.symbol(),
+                                ticker.side(),
+                                ticker.size(),
+                                ticker.tradeId(),
+                                price,
+                                ticker.bestBidPrice(),
+                                ticker.bestAskPrice(),
+                                ticker.bestBidSize(),
+                                ticker.bestAskSize(),
+                                ticker.ts(),
+                                high,
+                                low,
+                                vol
+                        );
+                    }
+                    return ticker;
+                })
+                .toList();
+
+        return indexByCanonical(mergedTickers, KucoinTickerData::symbol);
     }
 
     @Cacheable(cacheNames = "ex-instruments", key = "'KUCOIN'", sync = true)
