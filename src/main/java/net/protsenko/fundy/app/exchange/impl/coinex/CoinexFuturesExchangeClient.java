@@ -51,7 +51,15 @@ public class CoinexFuturesExchangeClient implements FuturesExchangeClient, Excha
         return mapFundingByCanonical(instruments, byCanonical, (inst, e) -> {
             var t = e.getValue();
             long next = resolveNextFundingTs(inst, t, metaByCanonical);
-            return funding(inst, t.fundingRateLast(), next);
+
+            // Use funding meta data for more current funding rate, fallback to ticker data
+            String key = canonicalKey(inst);
+            CoinexFundingMeta meta = metaByCanonical.get(key);
+            String fundingRate = (meta != null && meta.latestFundingRate() != null)
+                    ? meta.latestFundingRate()
+                    : t.fundingRateLast();
+
+            return funding(inst, fundingRate, next);
         });
     }
 
