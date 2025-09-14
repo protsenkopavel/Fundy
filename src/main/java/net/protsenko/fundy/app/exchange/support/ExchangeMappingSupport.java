@@ -38,8 +38,54 @@ public interface ExchangeMappingSupport {
 
     default TickerData ticker(InstrumentData instrument,
                               BigDecimal last, BigDecimal bid, BigDecimal ask,
+                              BigDecimal high24h, BigDecimal low24h, BigDecimal volume24h,
+                              BigDecimal priceChange24h, BigDecimal priceChangePercent24h,
+                              String tradingLink) {
+        return new TickerData(instrument, last, bid, ask, high24h, low24h, volume24h, priceChange24h, priceChangePercent24h, tradingLink);
+    }
+
+    default TickerData ticker(InstrumentData instrument,
+                              BigDecimal last, BigDecimal bid, BigDecimal ask,
                               BigDecimal high24h, BigDecimal low24h, BigDecimal volume24h) {
-        return new TickerData(instrument, last, bid, ask, high24h, low24h, volume24h);
+        BigDecimal priceChangePercent = null;
+        if (last != null && high24h != null && low24h != null &&
+            high24h.compareTo(BigDecimal.ZERO) != 0 && low24h.compareTo(BigDecimal.ZERO) != 0 &&
+            high24h.compareTo(low24h) != 0) {
+            try {
+                BigDecimal midPrice = high24h.add(low24h).divide(new BigDecimal("2"));
+                if (midPrice.compareTo(BigDecimal.ZERO) != 0) {
+                    BigDecimal change = last.subtract(midPrice)
+                            .divide(midPrice, 6, BigDecimal.ROUND_HALF_UP)
+                            .multiply(new BigDecimal("100"));
+                    priceChangePercent = change;
+                }
+            } catch (Exception _) {
+            }
+        }
+        return new TickerData(instrument, last, bid, ask, high24h, low24h, volume24h, null, priceChangePercent, null);
+    }
+
+    default TickerData ticker(InstrumentData instrument,
+                              String last, String bid, String ask,
+                              String high24h, String low24h, String volume24h,
+                              String priceChange24h, String priceChangePercent24h) {
+        return ticker(instrument,
+                toBigDecimal(last), toBigDecimal(bid), toBigDecimal(ask),
+                toBigDecimal(high24h), toBigDecimal(low24h), toBigDecimal(volume24h),
+                toBigDecimal(priceChange24h), toBigDecimal(priceChangePercent24h),
+                null);
+    }
+
+    default TickerData ticker(InstrumentData instrument,
+                              String last, String bid, String ask,
+                              String high24h, String low24h, String volume24h,
+                              String priceChange24h, String priceChangePercent24h,
+                              String tradingLink) {
+        return ticker(instrument,
+                toBigDecimal(last), toBigDecimal(bid), toBigDecimal(ask),
+                toBigDecimal(high24h), toBigDecimal(low24h), toBigDecimal(volume24h),
+                toBigDecimal(priceChange24h), toBigDecimal(priceChangePercent24h),
+                tradingLink);
     }
 
     default TickerData ticker(InstrumentData instrument,

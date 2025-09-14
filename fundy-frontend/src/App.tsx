@@ -4,6 +4,7 @@ import FundingPage from '@/pages/FundingPage';
 import ArbitragePage from '@/pages/ArbitragePage';
 import SpotArbitragePage from '@/pages/SpotArbitragePage';
 import SpotFuturesArbitragePage from '@/pages/SpotFuturesArbitragePage';
+import SpotCoinsPage from '@/pages/SpotCoinsPage';
 import FeedbackPage from '@/pages/FeedbackPage';
 import AboutPage from '@/pages/AboutPage';          // ← new
 import theme from '@/theme';
@@ -19,6 +20,7 @@ export default function App() {
                     <Button color="inherit" component={Link} to="/arbitrage">| Фьючерсный арбитраж |</Button>
                     <Button color="inherit" component={Link} to="/spot-arbitrage">| Спотовый арбитраж |</Button>
                     <Button color="inherit" component={Link} to="/spot-futures-arbitrage">| Спот-фьючерс арбитраж |</Button>
+                    <Button color="inherit" component={Link} to="/spot-coins">| Спотовые монеты |</Button>
                     <Button color="inherit" component={Link} to="/feedback">| Обратная связь |</Button>
                     <Button color="inherit" component={Link} to="/about">| О сервисе |</Button> {/* ← new */}
                 </Toolbar>
@@ -31,6 +33,7 @@ export default function App() {
                     <Route path="/arbitrage" element={<ArbitragePage />} />
                     <Route path="/spot-arbitrage" element={<SpotArbitragePage />} />
                     <Route path="/spot-futures-arbitrage" element={<SpotFuturesArbitragePage />} />
+                    <Route path="/spot-coins" element={<SpotCoinsPage />} />
                     <Route path="/feedback" element={<FeedbackPage />} />
                     <Route path="/about" element={<AboutPage />} />         {/* ← new */}
                 </Routes>

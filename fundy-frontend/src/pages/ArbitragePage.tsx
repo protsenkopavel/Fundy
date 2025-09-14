@@ -8,7 +8,7 @@ import {getExchanges, postArbitrage} from '@/api';
 import type {ArbitrageRequest, ArbitrageRow, Exchange} from '@/api/types';
 
 import ScanToolbar from '@/components/ScanToolbar';
-import {fmtPct, fmtPrice, fmtTs, fmtVolume, labelFromCanonical, pctColor, toCanonical} from '@/lib/symbols';
+import {fmtPct, fmtPrice, fmtTs, fmtVolume, pctColor} from '@/lib/symbols';
 import {BASE_TIMEZONES, EUROPE_TIMEZONES} from '@/lib/timezones';
 
 function CenterOverlay() {
@@ -123,9 +123,11 @@ export default function ArbitragePage() {
         setExchangeList(exList);
 
         const mapped = (data as any[]).map((it, i) => {
+            const instrument = it?.instrument;
+            const token = instrument ? `${instrument.base}/${instrument.quote}` : `token_${i}`;
             const row: any = {
-                id: it?.token ?? `arb_${i}`,
-                token: it?.token ?? `token_${i}`,
+                id: token,
+                token: token,
                 priceSpread: it?.priceSpread,
                 fundingSpread: it?.fundingSpread,
                 decision: it?.decision,
@@ -155,7 +157,6 @@ export default function ArbitragePage() {
                 align: 'center',
                 headerAlign: 'center',
                 renderCell: (p) => {
-                    const canon = toCanonical(String(p.value ?? ''));
                     return (
                         <Box sx={{
                             display: 'flex',
@@ -166,7 +167,7 @@ export default function ArbitragePage() {
                             fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3,
                             textAlign: 'center'
                         }}>
-                            {labelFromCanonical(canon)}
+                            {String(p.value ?? '').replace('/', '').toLowerCase()}
                         </Box>
                     );
                 }

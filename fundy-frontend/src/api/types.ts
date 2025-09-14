@@ -10,6 +10,7 @@ export type FundingRow = {
 };
 
 export type ArbitrageRow = {
+    instrument: { base: string; quote: string; canonicalKey: string };
     token: string;
     prices: Record<string, number>;
     volumes: Record<string, number>;
@@ -18,6 +19,7 @@ export type ArbitrageRow = {
     priceSpread?: number;
     fundingSpread?: number;
     decision?: { longEx?: string; shortEx?: string };
+    links?: Record<string, string>;
 };
 
 export type ArbitrageRequest = {
@@ -79,6 +81,19 @@ export type SpotFuturesArbitrageRequest = {
     minSpread?: number;
     maxSpread?: number;
     minVolume?: number;
+};
+
+export type TickerData = {
+    instrument: { baseAsset: string; quoteAsset: string; nativeSymbol?: string; exchangeType: string };
+    lastPrice: number;
+    bid?: number;
+    ask?: number;
+    high24h?: number;
+    low24h?: number;
+    volume24h?: number;
+    priceChange24h?: number;
+    priceChangePercent24h?: number;
+    tradingLink?: string;
 };
 
 export type FeedbackPayload = {

@@ -10,6 +10,7 @@ import net.protsenko.fundy.app.dto.rs.UniverseEntry;
 import net.protsenko.fundy.app.exchange.ExchangeClientFactory;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.utils.SymbolNormalizer;
+import net.protsenko.fundy.app.utils.ExchangeLinkResolver;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -82,7 +83,39 @@ public class SpotService extends BaseExchangeService {
                 }
 
                 if (targets.isEmpty()) return Stream.empty();
-                return c.getSpotTickers(targets).stream();
+
+                return c.getSpotTickers(targets).stream()
+                        .map(ticker -> {
+                            InstrumentData instrument = ticker.instrument();
+                            if (!instrument.exchangeType().equals(ex)) {
+                                instrument = new InstrumentData(
+                                        instrument.baseAsset(),
+                                        instrument.quoteAsset(),
+                                        instrument.type(),
+                                        instrument.nativeSymbol(),
+                                        ex
+                                );
+                            }
+
+                            String tradingLink = ExchangeLinkResolver.spotLink(
+                                    ex,
+                                    instrument.nativeSymbol(),
+                                    instrument.quoteAsset()
+                            );
+
+                            return new TickerData(
+                                    instrument,
+                                    ticker.lastPrice(),
+                                    ticker.bid(),
+                                    ticker.ask(),
+                                    ticker.high24h(),
+                                    ticker.low24h(),
+                                    ticker.volume24h(),
+                                    ticker.priceChange24h(),
+                                    ticker.priceChangePercent24h(),
+                                    tradingLink != null ? tradingLink : null
+                            );
+                        });
             } catch (Exception e) {
                 log.warn("getSpotTickers skip {}: {}", c.getExchangeType(), e.getMessage());
                 return Stream.empty();

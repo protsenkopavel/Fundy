@@ -9,7 +9,10 @@ public record TickerData(
         BigDecimal ask,
         BigDecimal high24h,
         BigDecimal low24h,
-        BigDecimal volume24h
+        BigDecimal volume24h,
+        BigDecimal priceChange24h,
+        BigDecimal priceChangePercent24h,
+        String tradingLink
 ) {
 }
 

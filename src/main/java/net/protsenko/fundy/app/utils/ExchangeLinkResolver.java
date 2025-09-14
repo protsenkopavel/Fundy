@@ -81,7 +81,7 @@ public final class ExchangeLinkResolver {
                         ? nativeSymbol.substring(0, nativeSymbol.length() - 1)
                         : nativeSymbol;
                 core = core.replaceAll("--+", "-");
-                return new String[]{core, null};
+                return splitByKnownQuote(core);
             }
             case BITGET -> {
                 int i = nativeSymbol.indexOf('_');
