@@ -62,8 +62,8 @@ public class BingxSpotExchangeClient implements SpotExchangeClient, ExchangeMapp
                             BigDecimal openPrice = ExchangeUtils.toBigDecimal(t.openPrice());
 
                             if (lastPrice != null && openPrice != null &&
-                                openPrice.compareTo(BigDecimal.ZERO) != 0 &&
-                                !lastPrice.equals(openPrice)) {
+                                    openPrice.compareTo(BigDecimal.ZERO) != 0 &&
+                                    !lastPrice.equals(openPrice)) {
 
                                 BigDecimal change = lastPrice.subtract(openPrice)
                                         .divide(openPrice, 6, BigDecimal.ROUND_HALF_UP)
@@ -74,9 +74,9 @@ public class BingxSpotExchangeClient implements SpotExchangeClient, ExchangeMapp
                                 BigDecimal lowPrice = ExchangeUtils.toBigDecimal(t.lowPrice());
 
                                 if (lastPrice != null && highPrice != null && lowPrice != null &&
-                                    highPrice.compareTo(BigDecimal.ZERO) > 0 &&
-                                    lowPrice.compareTo(BigDecimal.ZERO) > 0 &&
-                                    highPrice.compareTo(lowPrice) != 0) {
+                                        highPrice.compareTo(BigDecimal.ZERO) > 0 &&
+                                        lowPrice.compareTo(BigDecimal.ZERO) > 0 &&
+                                        highPrice.compareTo(lowPrice) != 0) {
 
                                     BigDecimal midPrice = highPrice.add(lowPrice).divide(new BigDecimal("2"));
                                     if (midPrice.compareTo(BigDecimal.ZERO) != 0) {

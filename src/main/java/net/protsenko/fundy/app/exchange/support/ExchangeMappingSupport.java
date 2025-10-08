@@ -41,7 +41,10 @@ public interface ExchangeMappingSupport {
                               BigDecimal high24h, BigDecimal low24h, BigDecimal volume24h,
                               BigDecimal priceChange24h, BigDecimal priceChangePercent24h,
                               String tradingLink) {
-        return new TickerData(instrument, last, bid, ask, high24h, low24h, volume24h, priceChange24h, priceChangePercent24h, tradingLink);
+        return new TickerData(
+                instrument, last, bid, ask, high24h, low24h, volume24h,
+                priceChange24h, priceChangePercent24h, tradingLink
+        );
     }
 
     default TickerData ticker(InstrumentData instrument,
@@ -49,8 +52,8 @@ public interface ExchangeMappingSupport {
                               BigDecimal high24h, BigDecimal low24h, BigDecimal volume24h) {
         BigDecimal priceChangePercent = null;
         if (last != null && high24h != null && low24h != null &&
-            high24h.compareTo(BigDecimal.ZERO) != 0 && low24h.compareTo(BigDecimal.ZERO) != 0 &&
-            high24h.compareTo(low24h) != 0) {
+                high24h.compareTo(BigDecimal.ZERO) != 0 && low24h.compareTo(BigDecimal.ZERO) != 0 &&
+                high24h.compareTo(low24h) != 0) {
             try {
                 BigDecimal midPrice = high24h.add(low24h).divide(new BigDecimal("2"));
                 if (midPrice.compareTo(BigDecimal.ZERO) != 0) {
@@ -60,6 +63,7 @@ public interface ExchangeMappingSupport {
                     priceChangePercent = change;
                 }
             } catch (Exception _) {
+                // ignored
             }
         }
         return new TickerData(instrument, last, bid, ask, high24h, low24h, volume24h, null, priceChangePercent, null);
