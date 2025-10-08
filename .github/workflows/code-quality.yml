@@ -54,3 +54,12 @@ jobs:
         with:
           name: test-results
           path: build/reports/tests/
+
+      - name: Comment PR with checkstyle results
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Checkstyle Results
+          path: 'build/reports/checkstyle/main.xml'
+          reporter: checkstyle
+          fail-on-error: false
