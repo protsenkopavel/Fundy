@@ -61,5 +61,5 @@ jobs:
         with:
           name: Checkstyle Results
           path: 'build/reports/checkstyle/main.xml'
-          reporter: java-checkstyle
+          reporter: checkstyle
           fail-on-error: true
