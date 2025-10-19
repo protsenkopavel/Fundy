@@ -13,8 +13,11 @@ import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.KucoinConfig;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 
 @Slf4j
 @Component
@@ -35,8 +38,14 @@ public class KucoinSpotExchangeClient implements SpotExchangeClient, ExchangeMap
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
         Map<String, KucoinTickerData> byTickers = cache.spotTickers();
         return mapTickersByCanonical(instruments, byTickers,
-                (inst, t) -> ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(),
-                        t.high(), t.low(), t.vol()));
+                (inst, t) -> {
+                    BigDecimal volCoins = toBigDecimal(t.vol());
+                    BigDecimal price = toBigDecimal(t.price());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+
+                    return ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(),
+                            t.high(), t.low(), volUsdt.toString());
+                });
     }
 
     @Override

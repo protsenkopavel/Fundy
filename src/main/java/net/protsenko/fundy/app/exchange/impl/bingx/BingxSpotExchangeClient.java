@@ -18,6 +18,8 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -92,8 +94,12 @@ public class BingxSpotExchangeClient implements SpotExchangeClient, ExchangeMapp
                         }
                     }
 
+                    BigDecimal volCoins = toBigDecimal(t.volume());
+                    BigDecimal price = toBigDecimal(t.lastPrice());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+
                     return ticker(inst, t.lastPrice(), t.bidPrice(), t.askPrice(),
-                            t.highPrice(), t.lowPrice(), t.volume(),
+                            t.highPrice(), t.lowPrice(), volUsdt.toString(),
                             null, priceChangePercent);
                 });
     }

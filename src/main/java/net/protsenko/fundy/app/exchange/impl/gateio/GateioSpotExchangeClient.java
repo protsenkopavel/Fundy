@@ -13,8 +13,11 @@ import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.GateioConfig;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 
 @Slf4j
 @Component
@@ -45,8 +48,12 @@ public class GateioSpotExchangeClient implements SpotExchangeClient, ExchangeMap
                         }
                     }
 
+                    BigDecimal volCoins = toBigDecimal(t.baseVolume());
+                    BigDecimal price = toBigDecimal(t.last());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+
                     return ticker(inst, t.last(), t.highestBid(), t.lowestAsk(),
-                            t.high24h(), t.low24h(), t.baseVolume(),
+                            t.high24h(), t.low24h(), volUsdt.toString(),
                             null, priceChangePercent);
                 });
     }
