@@ -12,9 +12,11 @@ import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.BybitConfig;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 import static net.protsenko.fundy.app.utils.ExchangeUtils.toLong;
 
 @Slf4j
@@ -37,8 +39,13 @@ public class BybitFuturesExchangeClient implements FuturesExchangeClient, Exchan
     public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, BybitTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
-                        t.highPrice24h(), t.lowPrice24h(), t.volume24h()));
+                (inst, t) -> {
+                    BigDecimal volCoins = toBigDecimal(t.volume24h());
+                    BigDecimal price = toBigDecimal(t.lastPrice());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+                    return ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
+                            t.highPrice24h(), t.lowPrice24h(), volUsdt.toString());
+                });
     }
 
     @Override

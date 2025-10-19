@@ -12,9 +12,11 @@ import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.HtxConfig;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 import static net.protsenko.fundy.app.utils.ExchangeUtils.toLong;
 
 @Slf4j
@@ -43,8 +45,12 @@ public class HtxFuturesExchangeClient implements FuturesExchangeClient, Exchange
     public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, HtxBatchResp.Tick> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, String.valueOf(t.close()),
-                        "0", "0", String.valueOf(t.high()), String.valueOf(t.low()), String.valueOf(t.vol())));
+                (inst, t) -> {
+                    BigDecimal volCoins = toBigDecimal(t.vol());
+                    BigDecimal price = toBigDecimal(t.close());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+                    return ticker(inst, String.valueOf(t.close()),"0", "0", String.valueOf(t.high()), String.valueOf(t.low()), volUsdt.toString());
+                });
     }
 
     @Override

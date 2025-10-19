@@ -37,7 +37,7 @@ public class BitgetFuturesExchangeClient implements FuturesExchangeClient, Excha
     public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, BitgetTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.last(), t.bestBid(), t.bestAsk(), t.high24h(), t.low24h(), t.baseVolume()));
+                (inst, t) -> ticker(inst, t.last(), t.bestBid(), t.bestAsk(), t.high24h(), t.low24h(), t.usdtVolume()));
     }
 
     @Override
