@@ -43,7 +43,8 @@ public class MexcFuturesExchangeClient implements FuturesExchangeClient, Exchang
                     BigDecimal volCoins = toBigDecimal(t.volume24());
                     BigDecimal price = toBigDecimal(t.lastPrice());
                     BigDecimal volUsdt = volCoins.multiply(price);
-                    return ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(), t.high24Price(), t.low24Price(), volUsdt.toString());
+                    return ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
+                            t.high24Price(), t.low24Price(), volUsdt.toString());
                 });
     }
 

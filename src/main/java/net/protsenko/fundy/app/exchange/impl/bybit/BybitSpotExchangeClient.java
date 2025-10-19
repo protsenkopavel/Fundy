@@ -7,15 +7,17 @@ import net.protsenko.fundy.app.dto.rs.DepositWithdrawStatus;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.dto.rs.WithdrawalDepositStatus;
-import net.protsenko.fundy.app.dto.rs.DepositWithdrawStatus;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.SpotExchangeClient;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.BybitConfig;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 
 @Slf4j
 @Component
@@ -37,8 +39,14 @@ public class BybitSpotExchangeClient implements SpotExchangeClient, ExchangeMapp
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
         Map<String, BybitTickerItem> byCanonical = cache.spotTickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
-                        t.highPrice24h(), t.lowPrice24h(), t.volume24h()));
+                (inst, t) -> {
+                    BigDecimal volCoins = toBigDecimal(t.volume24h());
+                    BigDecimal price = toBigDecimal(t.lastPrice());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+
+                    return ticker(inst, t.lastPrice(), t.bid1Price(), t.ask1Price(),
+                            t.highPrice24h(), t.lowPrice24h(), volUsdt.toString());
+                });
     }
 
     @Override

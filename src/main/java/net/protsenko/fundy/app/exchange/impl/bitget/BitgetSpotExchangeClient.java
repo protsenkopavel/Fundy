@@ -36,7 +36,7 @@ public class BitgetSpotExchangeClient implements SpotExchangeClient, ExchangeMap
         Map<String, BitgetSpotTickerItem> byCanonical = cache.spotTickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.close(), t.bidPr(), t.askPr(),
-                        t.high24h(), t.low24h(), t.baseVol()));
+                        t.high24h(), t.low24h(), t.usdtVol()));
     }
 
     @Override

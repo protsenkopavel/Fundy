@@ -49,7 +49,8 @@ public class HtxFuturesExchangeClient implements FuturesExchangeClient, Exchange
                     BigDecimal volCoins = toBigDecimal(t.vol());
                     BigDecimal price = toBigDecimal(t.close());
                     BigDecimal volUsdt = volCoins.multiply(price);
-                    return ticker(inst, String.valueOf(t.close()),"0", "0", String.valueOf(t.high()), String.valueOf(t.low()), volUsdt.toString());
+                    return ticker(inst, String.valueOf(t.close()),"0", "0",
+                            String.valueOf(t.high()), String.valueOf(t.low()), volUsdt.toString());
                 });
     }
 

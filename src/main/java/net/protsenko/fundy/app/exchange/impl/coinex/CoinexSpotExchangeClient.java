@@ -3,18 +3,21 @@ package net.protsenko.fundy.app.exchange.impl.coinex;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.protsenko.fundy.app.domain.InstrumentType;
+import net.protsenko.fundy.app.dto.rs.DepositWithdrawStatus;
 import net.protsenko.fundy.app.dto.rs.InstrumentData;
 import net.protsenko.fundy.app.dto.rs.TickerData;
 import net.protsenko.fundy.app.dto.rs.WithdrawalDepositStatus;
-import net.protsenko.fundy.app.dto.rs.DepositWithdrawStatus;
 import net.protsenko.fundy.app.exchange.ExchangeType;
 import net.protsenko.fundy.app.exchange.SpotExchangeClient;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.CoinexConfig;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 
 @Slf4j
 @Component
@@ -35,8 +38,14 @@ public class CoinexSpotExchangeClient implements SpotExchangeClient, ExchangeMap
     public List<TickerData> getSpotTickers(List<InstrumentData> instruments) {
         Map<String, CoinexSpotTickerItem> byCanonical = cache.spotTickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.last(), t.buy(), t.sell(),
-                        t.high(), t.low(), t.vol()));
+                (inst, t) -> {
+                    BigDecimal volCoins = toBigDecimal(t.vol());
+                    BigDecimal price = toBigDecimal(t.last());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+
+                    return ticker(inst, t.last(), t.buy(), t.sell(),
+                            t.high(), t.low(), volUsdt.toString());
+                });
     }
 
     @Override
