@@ -11,6 +11,7 @@ import net.protsenko.fundy.app.exchange.FuturesExchangeClient;
 import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 import static net.protsenko.fundy.app.utils.ExchangeUtils.toLong;
 
 @Slf4j
@@ -46,7 +48,12 @@ public class OkxFuturesExchangeClient implements FuturesExchangeClient, Exchange
     public List<TickerData> getFuturesTickers(List<InstrumentData> instruments) {
         Map<String, OkxTickerItem> byCanonical = cache.tickers();
         return mapTickersByCanonical(instruments, byCanonical,
-                (inst, t) -> ticker(inst, t.last(), t.bidPx(), t.askPx(), t.high24h(), t.low24h(), t.vol24h()));
+                (inst, t) -> {
+                    BigDecimal volCoins = toBigDecimal(t.volCcy24h());
+                    BigDecimal price = toBigDecimal(t.last());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+                    return ticker(inst, t.last(), t.bidPx(), t.askPx(), t.high24h(), t.low24h(), volUsdt.toString());
+                });
     }
 
     @Override

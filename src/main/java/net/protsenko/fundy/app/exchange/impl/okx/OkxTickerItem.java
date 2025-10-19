@@ -8,7 +8,7 @@ public record OkxTickerItem(
         String bidPx,
         String high24h,
         String low24h,
-        String vol24h,
+        String volCcy24h,
         String ts
 ) {
 }

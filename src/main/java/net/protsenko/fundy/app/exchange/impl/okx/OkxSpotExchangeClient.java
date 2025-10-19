@@ -36,7 +36,7 @@ public class OkxSpotExchangeClient implements SpotExchangeClient, ExchangeMappin
         Map<String, OkxTickerItem> byCanonical = cache.spotTickers();
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, t) -> ticker(inst, t.last(), t.bidPx(), t.askPx(),
-                        t.high24h(), t.low24h(), t.vol24h()));
+                        t.high24h(), t.low24h(), t.volCcy24h()));
     }
 
     @Override

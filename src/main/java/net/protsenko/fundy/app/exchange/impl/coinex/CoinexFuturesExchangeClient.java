@@ -12,9 +12,11 @@ import net.protsenko.fundy.app.exchange.support.ExchangeMappingSupport;
 import net.protsenko.fundy.app.props.CoinexConfig;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 import static net.protsenko.fundy.app.utils.SymbolNormalizer.canonicalKey;
 
 @Slf4j
@@ -40,7 +42,10 @@ public class CoinexFuturesExchangeClient implements FuturesExchangeClient, Excha
         return mapTickersByCanonical(instruments, byCanonical,
                 (inst, e) -> {
                     var t = e.getValue();
-                    return ticker(inst, t.last(), t.buy(), t.sell(), t.high(), t.low(), t.vol());
+                    BigDecimal volCoins = toBigDecimal(t.vol());
+                    BigDecimal price = toBigDecimal(t.last());
+                    BigDecimal volUsdt = volCoins.multiply(price);
+                    return ticker(inst, t.last(), t.buy(), t.sell(), t.high(), t.low(), volUsdt.toString());
                 });
     }
 

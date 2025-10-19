@@ -13,9 +13,12 @@ import net.protsenko.fundy.app.props.KucoinConfig;
 import net.protsenko.fundy.app.utils.SymbolNormalizer;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static net.protsenko.fundy.app.utils.ExchangeUtils.toBigDecimal;
 
 @Slf4j
 @Component
@@ -40,9 +43,12 @@ public class KucoinFuturesExchangeClient implements FuturesExchangeClient, Excha
         return mapTickersByCanonical(instruments, byTickers, (inst, t) -> {
             String key = SymbolNormalizer.canonicalKey(inst);
             KucoinContractItem c = byContracts.get(key);
+            BigDecimal volCoins = toBigDecimal(c.volumeOf24h());
+            BigDecimal price = toBigDecimal(t.price());
+            BigDecimal volUsdt = volCoins.multiply(price);
             if (c == null) return null;
             return ticker(inst, t.price(), t.bestBidPrice(), t.bestAskPrice(),
-                    c.highPrice(), c.lowPrice(), c.volumeOf24h());
+                    c.highPrice(), c.lowPrice(), volUsdt.toString());
         });
     }
 
