@@ -92,7 +92,7 @@ export default function FundingPage() {
             field: ex,
             headerName: ex,
             flex: 1,
-            minWidth: 180,
+            minWidth: 50,
             align: 'center',
             headerAlign: 'center',
             sortable: false,
