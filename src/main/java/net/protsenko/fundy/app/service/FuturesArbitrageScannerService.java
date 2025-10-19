@@ -29,6 +29,12 @@ public class FuturesArbitrageScannerService {
     private final FuturesArbitrageAnalyzer analyzer;
     private final FuturesArbitrageTimeFilter timeFilter;
 
+    private static final Set<String> EXCLUDED_INSTRUMENTS = Set.of("TRUMP/USDT");
+
+    private boolean isExcludedInstrument(String canonicalKey) {
+        return EXCLUDED_INSTRUMENTS.contains(canonicalKey);
+    }
+
     public List<FuturesArbitrageData> getArbitrageOpportunities(FuturesArbitrageRequest req) {
         Set<ExchangeType> exchanges = req.effectiveExchanges();
         BigDecimal minVolume = req.effectiveMinVolume();
@@ -37,7 +43,8 @@ public class FuturesArbitrageScannerService {
         return marketData.priceData().entrySet().parallelStream()
                 .filter(entry -> {
                     Map<ExchangeType, TickerData> instrumentPrices = entry.getValue();
-                    return instrumentPrices != null && instrumentPrices.size() >= 2;
+                    return instrumentPrices != null && instrumentPrices.size() >= 2 &&
+                           !isExcludedInstrument(entry.getKey());
                 })
                 .map(entry -> {
                     String canonicalKey = entry.getKey();
