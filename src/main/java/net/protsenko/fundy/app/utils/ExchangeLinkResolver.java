@@ -137,7 +137,7 @@ public final class ExchangeLinkResolver {
             case MEXC ->    // https://www.mexc.com/ru-RU/exchange/WXT_USDT
                     "https://www.mexc.com/ru-RU/exchange/" + base + "_" + quote;
             case KUCOIN ->  // https://www.kucoin.com/trade/AAVE3L-USDT
-                    "https://www.kucoin.com/trade/" + base;
+                    "https://www.kucoin.com/trade/" + base + quote;
             case BITGET ->  // https://www.bitget.com/spot/BTCUSDT
                     "https://www.bitget.com/spot/" + base + quote;
             case HTX ->     // https://www.htx.com/trade/uro_usdt?type=spot
